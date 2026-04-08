@@ -147,29 +147,19 @@
             color: white;
         }
 
-        .btn-sm {
-            padding: 8px 16px;
-            font-size: 12px;
+        .btn-lg {
+            padding: 16px 32px;
+            font-size: 16px;
         }
 
-        /* Loading */
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
-        }
-
+        /* Loading & Error States */
         .loading-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(255,255,255,0.95);
+            background: linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -177,23 +167,70 @@
             z-index: 9999;
         }
 
-        .loading-overlay .spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid #F3F4F6;
+        .loading-spinner {
+            width: 80px;
+            height: 80px;
+            border: 6px solid white;
             border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 1s linear infinite;
+            margin-bottom: 30px;
         }
 
-        .loading-error {
-            margin-top: 20px;
-            padding: 15px 25px;
-            background: #FEE2E2;
-            color: #EF4444;
-            border-radius: 12px;
-            max-width: 400px;
+        .loading-text {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .error-container {
             text-align: center;
+            padding: 40px;
+            max-width: 500px;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        .error-icon {
+            font-size: 100px;
+            color: #EF4444;
+            margin-bottom: 20px;
+            opacity: 0.8;
+        }
+
+        .error-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 15px;
+        }
+
+        .error-message {
+            font-size: 16px;
+            color: #6B7280;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .error-details {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: left;
+            border-left: 4px solid #EF4444;
+        }
+
+        .error-details h4 {
+            color: #EF4444;
+            margin-bottom: 10px;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .error-details p {
+            color: #6B7280;
+            font-size: 14px;
+            margin: 5px 0;
         }
 
         /* Header */
@@ -1513,6 +1550,8 @@
             .table-header,
             .table-row { grid-template-columns: 1fr; }
             .login-box { padding: 30px 20px; }
+            .error-container { padding: 20px; }
+            .error-title { font-size: 24px; }
         }
 
         /* Empty State */
@@ -1586,51 +1625,41 @@
             color: var(--primary);
             font-size: 12px;
         }
-
-        /* Offline mode indicator */
-        .offline-banner {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background: #F59E0B;
-            color: white;
-            text-align: center;
-            padding: 10px;
-            z-index: 10000;
-            display: none;
-        }
-
-        .offline-banner.show {
-            display: block;
-        }
     </style>
 </head>
 <body>
 
-    <!-- Offline Banner -->
-    <div class="offline-banner" id="offlineBanner">
-        <i class="fas fa-wifi-slash"></i> Modo Offline - Usando dados locais
-    </div>
-
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="spinner"></div>
-        <p style="margin-top: 20px; color: var(--primary); font-weight: 600;">Carregando...</p>
-        <div class="loading-error hidden" id="loadingError">
-            <i class="fas fa-exclamation-triangle"></i>
-            <p>Erro ao conectar ao servidor</p>
-            <button class="btn btn-primary" onclick="retryConnection()" style="margin-top: 10px;">
+    <!-- Loading / Error Overlay -->
+    <div class="loading-overlay" id="connectionOverlay">
+        <!-- Estado de Loading -->
+        <div id="loadingState">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Conectando ao servidor...</p>
+        </div>
+        
+        <!-- Estado de Erro -->
+        <div id="errorState" class="hidden error-container">
+            <div class="error-icon">
+                <i class="fas fa-wifi-slash"></i>
+            </div>
+            <h2 class="error-title">Falha de Conexão</h2>
+            <p class="error-message">
+                Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.
+            </p>
+            <div class="error-details">
+                <h4>Possíveis causas:</h4>
+                <p><i class="fas fa-times-circle" style="color: #EF4444; margin-right: 8px;"></i>Sem conexão com a internet</p>
+                <p><i class="fas fa-times-circle" style="color: #EF4444; margin-right: 8px;"></i>Servidor indisponível</p>
+                <p><i class="fas fa-times-circle" style="color: #EF4444; margin-right: 8px;"></i>Firewall bloqueando conexão</p>
+            </div>
+            <button class="btn btn-primary btn-lg" onclick="retryConnection()">
                 <i class="fas fa-redo"></i> Tentar Novamente
-            </button>
-            <button class="btn btn-outline" onclick="useOfflineMode()" style="margin-top: 10px; margin-left: 10px;">
-                <i class="fas fa-database"></i> Usar Offline
             </button>
         </div>
     </div>
 
     <!-- MODO CLIENTE -->
-    <div id="clientMode">
+    <div id="clientMode" class="hidden">
         <header class="header flex justify-between items-center">
             <div class="logo" onclick="window.location.reload()">
                 <i class="fas fa-crown"></i>
@@ -2085,25 +2114,30 @@
         let currentCategory = 'all';
         let currentAdmin = null;
         let orders = [];
-        let isOfflineMode = false;
-
-        // Produtos padrão para modo offline
-        const defaultProducts = [
-            { id: 'local_1', name: 'Açaí Tradicional', description: 'Açaí puro e cremoso na medida certa', price: 12, category: 'acai', emoji: '🍇', badge: 'Mais Vendido', active: true, sales: 0 },
-            { id: 'local_2', name: 'Açaí Premium', description: 'Com mix de nuts e frutas especiais', price: 18, category: 'acai', emoji: '👑', badge: 'Premium', active: true, sales: 0 },
-            { id: 'local_3', name: 'Açaí Energia', description: 'Com guaraná e banana para energia', price: 15, category: 'acai', emoji: '⚡', badge: null, active: true, sales: 0 },
-            { id: 'local_4', name: 'Cupuaçu Cremoso', description: 'O verdadeiro sabor da Amazônia', price: 14, category: 'cupuacu', emoji: '☁️', badge: 'Novo', active: true, sales: 0 },
-            { id: 'local_5', name: 'Mix Açaí + Cupuaçu', description: 'A melhor combinação de sabores', price: 16, category: 'combo', emoji: '🌟', badge: 'Combo', active: true, sales: 0 },
-            { id: 'local_6', name: 'Açaí Família', description: '700ml para compartilhar', price: 24, category: 'combo', emoji: '👨‍👩‍👧‍👦', badge: 'Economize', active: true, sales: 0 }
-        ];
+        let connectionAttempts = 0;
+        const MAX_ATTEMPTS = 3;
 
         // Inicialização
         document.addEventListener('DOMContentLoaded', () => {
-            initFirebase();
+            checkConnection();
         });
 
-        // Inicializar Firebase com tratamento de erro
+        // Verificar conexão com internet
+        function checkConnection() {
+            // Verificar se há conexão com a internet
+            if (!navigator.onLine) {
+                showErrorState();
+                return;
+            }
+            
+            // Tentar conectar ao Firebase
+            initFirebase();
+        }
+
+        // Inicializar Firebase
         function initFirebase() {
+            connectionAttempts++;
+            
             try {
                 // Verificar se Firebase está disponível
                 if (typeof firebase === 'undefined') {
@@ -2114,67 +2148,82 @@
                 firebaseApp = firebase.initializeApp(firebaseConfig);
                 database = firebase.database();
 
-                // Testar conexão
-                database.ref('.info/connected').on('value', (snap) => {
-                    if (snap.val() === true) {
-                        console.log('Conectado ao Firebase');
-                        loadProducts();
-                        loadOrders();
+                // Testar conexão com timeout
+                const connectionTimeout = setTimeout(() => {
+                    if (connectionAttempts < MAX_ATTEMPTS) {
+                        // Tentar novamente automaticamente
+                        initFirebase();
                     } else {
-                        console.log('Desconectado do Firebase');
+                        showErrorState();
+                    }
+                }, 5000);
+
+                // Verificar conexão
+                database.ref('.info/connected').on('value', (snap) => {
+                    clearTimeout(connectionTimeout);
+                    
+                    if (snap.val() === true) {
+                        console.log('✅ Conectado ao Firebase');
+                        connectionAttempts = 0;
+                        loadData();
+                    } else {
+                        console.log('❌ Desconectado do Firebase');
+                        if (connectionAttempts >= MAX_ATTEMPTS) {
+                            showErrorState();
+                        }
+                    }
+                }, (error) => {
+                    clearTimeout(connectionTimeout);
+                    console.error('Erro de conexão:', error);
+                    if (connectionAttempts >= MAX_ATTEMPTS) {
+                        showErrorState();
+                    } else {
+                        setTimeout(initFirebase, 2000);
                     }
                 });
 
-                // Timeout de segurança
-                setTimeout(() => {
-                    if (document.getElementById('loadingOverlay').style.display !== 'none') {
-                        showLoadingError();
-                    }
-                }, 10000);
-
             } catch (error) {
                 console.error('Erro Firebase:', error);
-                showLoadingError();
+                if (connectionAttempts >= MAX_ATTEMPTS) {
+                    showErrorState();
+                } else {
+                    setTimeout(initFirebase, 2000);
+                }
             }
         }
 
-        function showLoadingError() {
-            document.querySelector('.loading-overlay .spinner').style.display = 'none';
-            document.querySelector('.loading-overlay p').textContent = 'Erro de conexão';
-            document.getElementById('loadingError').classList.remove('hidden');
+        // Mostrar estado de erro
+        function showErrorState() {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('errorState').classList.remove('hidden');
         }
 
+        // Tentar reconectar
         function retryConnection() {
-            document.querySelector('.loading-overlay .spinner').style.display = 'block';
-            document.querySelector('.loading-overlay p').textContent = 'Carregando...';
-            document.getElementById('loadingError').classList.add('hidden');
-            initFirebase();
+            connectionAttempts = 0;
+            document.getElementById('errorState').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('hidden');
+            
+            // Verificar novamente
+            setTimeout(checkConnection, 500);
         }
 
-        function useOfflineMode() {
-            isOfflineMode = true;
-            document.getElementById('loadingOverlay').style.display = 'none';
-            document.getElementById('offlineBanner').classList.add('show');
+        // Carregar dados após conexão
+        function loadData() {
+            // Esconder overlay de loading
+            document.getElementById('connectionOverlay').style.display = 'none';
+            document.getElementById('clientMode').classList.remove('hidden');
             
-            // Usar produtos locais
-            products = [...defaultProducts];
-            renderProducts();
-            renderAdminProducts();
-            updateStats();
-            
-            showToast('Modo Offline ativado - Dados locais carregados');
+            // Carregar produtos e pedidos
+            loadProducts();
+            loadOrders();
         }
 
-        // Carregar produtos do Firebase
+        // Carregar produtos
         function loadProducts() {
-            if (!database) {
-                useOfflineMode();
-                return;
-            }
+            if (!database) return;
 
-            const productsRef = database.ref('products');
-            
-            productsRef.on('value', (snapshot) => {
+            database.ref('products').on('value', (snapshot) => {
                 const data = snapshot.val();
                 
                 if (data) {
@@ -2190,38 +2239,28 @@
                 
                 renderProducts();
                 updateStats();
-                hideLoading();
             }, (error) => {
                 console.error('Erro ao carregar produtos:', error);
-                useOfflineMode();
+                showToast('Erro ao carregar produtos', 'error');
             });
         }
 
-        // Inicializar produtos padrão no Firebase
+        // Produtos padrão
         function initializeDefaultProducts() {
-            if (!database || isOfflineMode) return;
+            const defaultProducts = {
+                prod1: { name: 'Açaí Tradicional', description: 'Açaí puro e cremoso na medida certa', price: 12, category: 'acai', emoji: '🍇', badge: 'Mais Vendido', active: true, sales: 0 },
+                prod2: { name: 'Açaí Premium', description: 'Com mix de nuts e frutas especiais', price: 18, category: 'acai', emoji: '👑', badge: 'Premium', active: true, sales: 0 },
+                prod3: { name: 'Açaí Energia', description: 'Com guaraná e banana para energia', price: 15, category: 'acai', emoji: '⚡', badge: null, active: true, sales: 0 },
+                prod4: { name: 'Cupuaçu Cremoso', description: 'O verdadeiro sabor da Amazônia', price: 14, category: 'cupuacu', emoji: '☁️', badge: 'Novo', active: true, sales: 0 },
+                prod5: { name: 'Combo Família', description: '700ml para compartilhar', price: 24, category: 'combo', emoji: '👨‍👩‍👧‍👦', badge: 'Economize', active: true, sales: 0 }
+            };
             
-            const initialData = {};
-            defaultProducts.forEach((prod, index) => {
-                const key = `prod_${Date.now()}_${index}`;
-                initialData[key] = { ...prod, id: undefined };
-            });
-            
-            database.ref('products').set(initialData)
-                .then(() => console.log('Produtos padrão criados'))
-                .catch(err => {
-                    console.error('Erro ao criar produtos:', err);
-                    useOfflineMode();
-                });
+            database.ref('products').set(defaultProducts);
         }
 
         // Carregar pedidos
         function loadOrders() {
-            if (!database || isOfflineMode) {
-                orders = [];
-                renderAdminOrders();
-                return;
-            }
+            if (!database) return;
 
             database.ref('orders').on('value', (snapshot) => {
                 const data = snapshot.val();
@@ -2299,7 +2338,7 @@
             
             document.getElementById('modalProductName').textContent = currentProduct.name;
             
-            // Atualizar preços nos botões de tamanho
+            // Atualizar preços
             const basePrice = parseFloat(currentProduct.price || 0);
             document.getElementById('price300').textContent = `R$ ${basePrice.toFixed(2)}`;
             document.getElementById('price500').textContent = `R$ ${(basePrice * 1.5).toFixed(2)}`;
@@ -2433,7 +2472,6 @@
             const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
             const total = subtotal + 5;
             
-            // Salvar pedido
             const orderData = {
                 items: cart,
                 subtotal: subtotal,
@@ -2444,31 +2482,27 @@
                 whatsapp: ''
             };
             
-            if (!isOfflineMode && database) {
-                database.ref('orders').push(orderData)
-                    .then(() => {
-                        finalizeCheckout(total);
-                    })
-                    .catch(err => {
-                        console.error('Erro ao salvar pedido:', err);
-                        finalizeCheckout(total);
+            database.ref('orders').push(orderData)
+                .then(() => {
+                    // Atualizar vendas
+                    cart.forEach(item => {
+                        database.ref(`products/${item.product.id}/sales`).transaction(current => (current || 0) + item.qty);
                     });
-            } else {
-                finalizeCheckout(total);
-            }
-        }
-
-        function finalizeCheckout(total) {
-            const message = `Olá! Novo pedido Açaí Rei:%0A%0A${cart.map(item => 
-                `- ${item.product.name} (${item.size.ml}ml) ${item.toppings.length ? 'c/ ' + item.toppings.join(', ') : ''} x${item.qty}`
-            ).join('%0A')}%0A%0ASubtotal: R$ ${cart.reduce((s, i) => s + i.total, 0).toFixed(2)}%0AEntrega: R$ 5,00%0ATotal: R$ ${total.toFixed(2)}`;
-            
-            window.open(`https://wa.me/5511999999999?text=${message}`, '_blank');
-            
-            cart = [];
-            updateCart();
-            toggleCart();
-            showToast('Pedido enviado com sucesso!');
+                    
+                    const message = `Olá! Novo pedido Açaí Rei:%0A%0A${cart.map(item => 
+                        `- ${item.product.name} (${item.size.ml}ml) ${item.toppings.length ? 'c/ ' + item.toppings.join(', ') : ''} x${item.qty}`
+                    ).join('%0A')}%0A%0ASubtotal: R$ ${subtotal.toFixed(2)}%0AEntrega: R$ 5,00%0ATotal: R$ ${total.toFixed(2)}`;
+                    
+                    window.open(`https://wa.me/5511999999999?text=${message}`, '_blank');
+                    
+                    cart = [];
+                    updateCart();
+                    toggleCart();
+                    showToast('Pedido enviado com sucesso!');
+                })
+                .catch(err => {
+                    showToast('Erro ao enviar pedido. Verifique sua conexão.', 'error');
+                });
         }
 
         // Admin Functions
@@ -2492,53 +2526,38 @@
                 return;
             }
             
-            // Verificar credenciais (modo offline ou Firebase)
-            if (isOfflineMode) {
-                // Login offline padrão
-                if (user === 'admin' && pass === 'acairei2024') {
-                    enterAdminMode({ username: 'admin', name: 'Administrador' });
-                } else {
-                    showLoginError('Credenciais inválidas!');
-                }
-                return;
-            }
-            
-            // Verificar no Firebase
-            if (database) {
-                database.ref('admins').once('value')
-                    .then(snapshot => {
-                        const admins = snapshot.val();
-                        let valid = false;
-                        let adminData = null;
-                        
-                        if (admins) {
-                            Object.keys(admins).forEach(key => {
-                                if (admins[key].username === user && admins[key].password === pass) {
-                                    valid = true;
-                                    adminData = { id: key, ...admins[key] };
-                                    currentAdmin = adminData;
-                                }
-                            });
-                        }
-                        
-                        // Criar admin padrão se não existir
-                        if (!admins && user === 'admin' && pass === 'acairei2024') {
-                            valid = true;
-                            adminData = { username: 'admin', password: 'acairei2024', name: 'Administrador' };
-                            database.ref('admins/admin1').set(adminData);
-                        }
-                        
-                        if (valid) {
-                            enterAdminMode(adminData);
-                        } else {
-                            showLoginError('Usuário ou senha incorretos!');
-                        }
-                    })
-                    .catch(err => {
-                        console.error('Erro login:', err);
-                        showLoginError('Erro de conexão!');
-                    });
-            }
+            database.ref('admins').once('value')
+                .then(snapshot => {
+                    const admins = snapshot.val();
+                    let valid = false;
+                    let adminData = null;
+                    
+                    if (admins) {
+                        Object.keys(admins).forEach(key => {
+                            if (admins[key].username === user && admins[key].password === pass) {
+                                valid = true;
+                                adminData = { id: key, ...admins[key] };
+                                currentAdmin = adminData;
+                            }
+                        });
+                    }
+                    
+                    // Criar admin padrão se não existir
+                    if (!admins && user === 'admin' && pass === 'acairei2024') {
+                        valid = true;
+                        adminData = { username: 'admin', password: 'acairei2024', name: 'Administrador' };
+                        database.ref('admins/admin1').set(adminData);
+                    }
+                    
+                    if (valid) {
+                        enterAdminMode(adminData);
+                    } else {
+                        showLoginError('Usuário ou senha incorretos!');
+                    }
+                })
+                .catch(err => {
+                    showLoginError('Erro de conexão!');
+                });
         }
 
         function showLoginError(msg) {
@@ -2622,27 +2641,13 @@
         }
 
         function toggleProductStatus(productId, currentStatus) {
-            if (isOfflineMode) {
-                // Atualizar localmente
-                const idx = products.findIndex(p => p.id === productId);
-                if (idx !== -1) {
-                    products[idx].active = !currentStatus;
-                    renderProducts();
-                    renderAdminProducts();
+            database.ref(`products/${productId}/active`).set(!currentStatus)
+                .then(() => {
                     showToast(currentStatus ? 'Produto desativado!' : 'Produto ativado!');
-                }
-                return;
-            }
-            
-            if (database) {
-                database.ref(`products/${productId}/active`).set(!currentStatus)
-                    .then(() => {
-                        showToast(currentStatus ? 'Produto desativado!' : 'Produto ativado!');
-                    })
-                    .catch(err => {
-                        showToast('Erro ao atualizar!', 'error');
-                    });
-            }
+                })
+                .catch(err => {
+                    showToast('Erro ao atualizar!', 'error');
+                });
         }
 
         function addNewProduct() {
@@ -2670,56 +2675,25 @@
                 createdAt: Date.now()
             };
             
-            if (isOfflineMode) {
-                // Adicionar localmente
-                newProduct.id = 'local_' + Date.now();
-                products.push(newProduct);
-                renderProducts();
-                renderAdminProducts();
-                
-                // Limpar formulário
-                document.getElementById('newProductName').value = '';
-                document.getElementById('newProductPrice').value = '';
-                document.getElementById('newProductDesc').value = '';
-                document.getElementById('newProductBadge').value = '';
-                
-                showToast('Produto adicionado (modo offline)!');
-                return;
-            }
-            
-            if (database) {
-                database.ref('products').push(newProduct)
-                    .then(() => {
-                        showToast('Produto adicionado com sucesso!');
-                        
-                        // Limpar formulário
-                        document.getElementById('newProductName').value = '';
-                        document.getElementById('newProductPrice').value = '';
-                        document.getElementById('newProductDesc').value = '';
-                        document.getElementById('newProductBadge').value = '';
-                    })
-                    .catch(err => {
-                        showToast('Erro ao adicionar!', 'error');
-                    });
-            }
+            database.ref('products').push(newProduct)
+                .then(() => {
+                    showToast('Produto adicionado com sucesso!');
+                    document.getElementById('newProductName').value = '';
+                    document.getElementById('newProductPrice').value = '';
+                    document.getElementById('newProductDesc').value = '';
+                    document.getElementById('newProductBadge').value = '';
+                })
+                .catch(err => {
+                    showToast('Erro ao adicionar!', 'error');
+                });
         }
 
         function deleteProduct(productId) {
             if (!confirm('Tem certeza que deseja excluir este produto?')) return;
             
-            if (isOfflineMode) {
-                products = products.filter(p => p.id !== productId);
-                renderProducts();
-                renderAdminProducts();
-                showToast('Produto excluído!');
-                return;
-            }
-            
-            if (database) {
-                database.ref(`products/${productId}`).remove()
-                    .then(() => showToast('Produto excluído!'))
-                    .catch(err => showToast('Erro ao excluir!', 'error'));
-            }
+            database.ref(`products/${productId}`).remove()
+                .then(() => showToast('Produto excluído!'))
+                .catch(err => showToast('Erro ao excluir!', 'error'));
         }
 
         function renderAdminOrders() {
@@ -2797,22 +2771,9 @@
         }
 
         function updateOrderStatus(orderId, status) {
-            if (isOfflineMode) {
-                const idx = orders.findIndex(o => o.id === orderId);
-                if (idx !== -1) {
-                    orders[idx].status = status;
-                    renderAdminOrders();
-                    renderAllOrders();
-                    showToast(`Pedido ${formatStatus(status)}!`);
-                }
-                return;
-            }
-            
-            if (database) {
-                database.ref(`orders/${orderId}/status`).set(status)
-                    .then(() => showToast(`Pedido ${formatStatus(status)}!`))
-                    .catch(err => showToast('Erro ao atualizar!', 'error'));
-            }
+            database.ref(`orders/${orderId}/status`).set(status)
+                .then(() => showToast(`Pedido ${formatStatus(status)}!`))
+                .catch(err => showToast('Erro ao atualizar!', 'error'));
         }
 
         function updateOrderBadge() {
@@ -2857,19 +2818,12 @@
                 return;
             }
             
-            if (isOfflineMode) {
-                showToast('Modo offline - senha não pode ser alterada');
-                return;
-            }
-            
-            if (database && currentAdmin.id) {
-                database.ref(`admins/${currentAdmin.id}/password`).set(newPass)
-                    .then(() => {
-                        showToast('Senha atualizada!');
-                        document.getElementById('newAdminPass').value = '';
-                    })
-                    .catch(err => showToast('Erro ao atualizar!', 'error'));
-            }
+            database.ref(`admins/${currentAdmin.id}/password`).set(newPass)
+                .then(() => {
+                    showToast('Senha atualizada!');
+                    document.getElementById('newAdminPass').value = '';
+                })
+                .catch(err => showToast('Erro ao atualizar!', 'error'));
         }
 
         // Utilidades
@@ -2910,11 +2864,6 @@
             if (el) el.scrollIntoView({ behavior: 'smooth' });
         }
 
-        function hideLoading() {
-            const overlay = document.getElementById('loadingOverlay');
-            if (overlay) overlay.style.display = 'none';
-        }
-
         // Fechar modais ao clicar fora
         document.getElementById('customizeModal')?.addEventListener('click', (e) => {
             if (e.target === e.currentTarget) closeModal();
@@ -2923,6 +2872,19 @@
         // Enter no login
         document.getElementById('adminPass')?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') doLogin();
+        });
+
+        // Monitorar mudanças de conexão
+        window.addEventListener('online', () => {
+            console.log('🌐 Conexão restaurada');
+            if (document.getElementById('errorState').classList.contains('hidden') === false) {
+                retryConnection();
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            console.log('📴 Conexão perdida');
+            showToast('Conexão perdida!', 'error');
         });
     </script>
 </body>
