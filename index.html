@@ -3,14 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Açaí Rei - Delivery de Açaí Premium">
     <title>Açaí Rei - Delivery</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- Firebase SDK -->
-    <script type="module" src="script.js" defer></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #6B21A8; --primary-dark: #581C87; --primary-light: #A855F7;
+            --secondary: #000000; --background: #F9FAFB; --surface: #FFFFFF;
+            --text-primary: #111827; --text-secondary: #6B7280;
+            --success: #10B981; --warning: #F59E0B; --danger: #EF4444; --info: #3B82F6;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.1); --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+            --radius: 8px; --radius-lg: 12px;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--background); color: var(--text-primary); line-height: 1.6; min-height: 100vh; display: flex; flex-direction: column; }
+        .hidden { display: none !important; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 16px; width: 100%; }
+
+        /* Header */
+        .header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; padding: 16px 0; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
+        .header .container { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .logo { display: flex; align-items: center; gap: 8px; }
+        .logo-icon { font-size: 2rem; }
+        .logo h1 { font-size: 1.5rem; font-weight: 700; }
+        .nav { display: flex; gap: 8px; flex-wrap: wrap; }
+        .nav-btn { background: rgba(255,255,255,0.1); border: 2px solid transparent; color: white; padding: 8px 16px; border-radius: var(--radius); cursor: pointer; font-size: 0.9rem; font-weight: 500; transition: all 0.3s ease; position: relative; }
+        .nav-btn:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); }
+        .nav-btn.active { background: white; color: var(--primary); }
+        .badge { position: absolute; top: -8px; right: -8px; background: var(--danger); color: white; font-size: 0.75rem; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
+
+        /* Main */
+        .main-container { flex: 1; padding: 24px 0; }
+        .section { display: none; }
+        .section.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .section-title { font-size: 1.75rem; margin-bottom: 24px; font-weight: 700; }
+
+        /* Cardápio */
+        .cardapio-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .produto-card { background: var(--surface); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow); transition: all 0.3s ease; display: flex; flex-direction: column; }
+        .produto-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+        .produto-imagem { height: 160px; background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%); display: flex; align-items: center; justify-content: center; font-size: 4rem; }
+        .produto-info { padding: 16px; flex: 1; display: flex; flex-direction: column; }
+        .produto-nome { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; }
+        .produto-descricao { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 12px; flex: 1; }
+        .produto-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+        .produto-preco { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
+        .btn-add { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: var(--radius); cursor: pointer; font-weight: 600; transition: all 0.3s ease; }
+        .btn-add:hover { background: var(--primary-dark); transform: scale(1.05); }
+        .btn-add:disabled { background: var(--text-secondary); cursor: not-allowed; transform: none; }
+        .loading { text-align: center; padding: 40px; color: var(--text-secondary); }
+
+        /* Carrinho */
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .empty-icon { font-size: 4rem; display: block; margin-bottom: 16px; }
+        .carrinho-lista { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+        .carrinho-item { background: var(--surface); border-radius: var(--radius); padding: 16px; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .item-imagem { width: 60px; height: 60px; background: linear-gradient(135deg, var(--primary-light), var(--primary)); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; }
+        .item-info { flex: 1; }
+        .item-nome { font-weight: 600; margin-bottom: 4px; }
+        .item-preco { color: var(--primary); font-weight: 600; }
+        .item-quantidade { display: flex; align-items: center; gap: 8px; }
+        .btn-qtd { width: 32px; height: 32px; border: 2px solid var(--primary); background: transparent; color: var(--primary); border-radius: 50%; cursor: pointer; font-weight: 600; transition: all 0.3s ease; }
+        .btn-qtd:hover { background: var(--primary); color: white; }
+        .btn-remover { background: transparent; border: none; color: var(--danger); cursor: pointer; font-size: 1.2rem; padding: 4px; }
+        .carrinho-resumo { background: var(--surface); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow); }
+        .resumo-linha { display: flex; justify-content: space-between; margin-bottom: 12px; color: var(--text-secondary); }
+        .resumo-linha.total { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); border-top: 2px solid var(--background); padding-top: 12px; margin-top: 12px; }
+
+        /* Botões */
+        .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; padding: 12px 24px; border-radius: var(--radius); cursor: pointer; font-weight: 600; font-size: 1rem; transition: all 0.3s ease; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+        .btn-secondary { background: var(--background); color: var(--text-primary); border: 2px solid var(--text-secondary); padding: 12px 24px; border-radius: var(--radius); cursor: pointer; font-weight: 600; font-size: 1rem; }
+        .btn-secondary:hover { background: var(--text-secondary); color: white; }
+        .btn-full { width: 100%; margin-top: 16px; }
+
+        /* Checkout */
+        .checkout-form { max-width: 600px; margin: 0 auto; background: var(--surface); padding: 24px; border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 500; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px; border: 2px solid #E5E7EB; border-radius: var(--radius); font-size: 1rem; transition: all 0.3s ease; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .resumo-pedido { background: var(--background); padding: 16px; border-radius: var(--radius); margin: 24px 0; }
+        .resumo-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #E5E7EB; font-size: 0.9rem; }
+        .resumo-total { font-size: 1.2rem; text-align: right; color: var(--primary); margin-top: 12px; }
+        .form-actions { display: flex; gap: 12px; justify-content: flex-end; }
+
+        /* Status Pedido */
+        .pedido-status { max-width: 700px; margin: 0 auto; background: var(--surface); padding: 32px; border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+        .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; flex-wrap: wrap; gap: 12px; }
+        .status-badge { padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem; text-transform: uppercase; }
+        .status-badge.recebido { background: #DBEAFE; color: var(--info); }
+        .status-badge.preparo { background: #FEF3C7; color: var(--warning); }
+        .status-badge.entrega { background: #E0E7FF; color: #6366F1; }
+        .status-badge.entregue { background: #D1FAE5; color: var(--success); }
+        .status-badge.cancelado { background: #FEE2E2; color: var(--danger); }
+
+        .timeline { display: flex; justify-content: space-between; position: relative; margin-bottom: 40px; padding: 0 20px; }
+        .timeline::before { content: ''; position: absolute; top: 20px; left: 10%; right: 10%; height: 4px; background: #E5E7EB; z-index: 0; }
+        .timeline-item { display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1; flex: 1; }
+        .timeline-icon { width: 44px; height: 44px; background: #E5E7EB; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; margin-bottom: 8px; transition: all 0.3s ease; }
+        .timeline-text { font-size: 0.8rem; text-align: center; color: var(--text-secondary); font-weight: 500; }
+        .timeline-item.active .timeline-icon { background: var(--primary); color: white; transform: scale(1.1); }
+        .timeline-item.active .timeline-text { color: var(--primary); font-weight: 600; }
+        .timeline-item.completed .timeline-icon { background: var(--success); color: white; }
+        .pedido-cancelado { text-align: center; padding: 40px; background: #FEE2E2; border-radius: var(--radius); margin-bottom: 24px; }
+        .cancel-icon { font-size: 3rem; display: block; margin-bottom: 16px; }
+        .pedido-detalhes { background: var(--background); padding: 20px; border-radius: var(--radius); margin-bottom: 24px; }
+
+        /* Admin Login */
+        .login-box { max-width: 400px; margin: 40px auto; background: var(--surface); padding: 40px; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
+        .login-header { text-align: center; margin-bottom: 32px; }
+        .login-icon { font-size: 3rem; display: block; margin-bottom: 16px; }
+        .erro-msg { background: #FEE2E2; color: var(--danger); padding: 12px; border-radius: var(--radius); margin-bottom: 16px; text-align: center; }
+
+        /* Admin Dashboard */
+        .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        .admin-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid #E5E7EB; padding-bottom: 12px; }
+        .tab-btn { background: transparent; border: none; padding: 12px 24px; cursor: pointer; font-weight: 600; color: var(--text-secondary); border-radius: var(--radius); }
+        .tab-btn:hover { color: var(--primary); background: rgba(107,33,168,0.1); }
+        .tab-btn.active { color: var(--primary); background: rgba(107,33,168,0.1); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+        .pedidos-filtros { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filtro-btn { background: var(--background); border: 2px solid transparent; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.9rem; }
+        .filtro-btn:hover { border-color: var(--primary); }
+        .filtro-btn.active { background: var(--primary); color: white; }
+
+        .admin-pedidos-lista { display: flex; flex-direction: column; gap: 16px; }
+        .pedido-card { background: var(--surface); border-radius: var(--radius-lg); padding: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-left: 4px solid var(--primary); }
+        .pedido-card.cancelado { border-left-color: var(--danger); opacity: 0.7; }
+        .pedido-card.entregue { border-left-color: var(--success); }
+        .pedido-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+        .pedido-info h4 { font-size: 1.1rem; margin-bottom: 4px; }
+        .pedido-meta { font-size: 0.85rem; color: var(--text-secondary); }
+        .pedido-itens-preview { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 12px; }
+        .pedido-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-small { padding: 6px 12px; font-size: 0.85rem; border-radius: var(--radius); border: none; cursor: pointer; font-weight: 500; }
+        .btn-aceitar { background: var(--success); color: white; }
+        .btn-recusar { background: var(--danger); color: white; }
+        .btn-status { background: var(--info); color: white; }
+
+        .cardapio-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .admin-cardapio-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+        .admin-produto-card { background: var(--surface); border-radius: var(--radius); padding: 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .admin-produto-preco { font-weight: 700; color: var(--primary); margin-top: 4px; }
+        .admin-produto-actions { display: flex; gap: 8px; }
+        .btn-edit, .btn-delete { width: 36px; height: 36px; border: none; border-radius: var(--radius); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .btn-edit { background: var(--warning); color: white; }
+        .btn-delete { background: var(--danger); color: white; }
+        .indisponivel-badge { background: var(--text-secondary); color: white; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; margin-left: 8px; }
+
+        .historico-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: var(--surface); padding: 20px; border-radius: var(--radius); text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .stat-value { display: block; font-size: 1.5rem; font-weight: 700; color: var(--primary); margin-bottom: 4px; }
+        .stat-label { font-size: 0.85rem; color: var(--text-secondary); }
+
+        /* Modal */
+        .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+        .modal-content { background: var(--surface); border-radius: var(--radius-lg); width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; animation: modalSlide 0.3s ease; }
+        @keyframes modalSlide { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #E5E7EB; }
+        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+        .modal-close:hover { background: var(--background); color: var(--danger); }
+        .modal-form { padding: 20px; }
+        .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+        .checkbox-group label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .checkbox-group input { width: auto; }
+
+        /* Notificação */
+        .notification { position: fixed; top: 80px; right: 20px; background: var(--surface); border-radius: var(--radius); padding: 16px 24px; box-shadow: var(--shadow-lg); z-index: 1001; border-left: 4px solid var(--primary); animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .notification-content { display: flex; align-items: center; gap: 12px; }
+        .notification-icon { font-size: 1.5rem; }
+
+        /* Footer */
+        .footer { background: var(--secondary); color: white; text-align: center; padding: 24px; margin-top: auto; }
+
+        /* Responsivo */
+        @media (max-width: 768px) {
+            .header .container { flex-direction: column; align-items: stretch; }
+            .nav { justify-content: center; }
+            .nav-btn { flex: 1; text-align: center; }
+            .cardapio-grid { grid-template-columns: 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+            .timeline { flex-direction: column; gap: 20px; }
+            .timeline::before { display: none; }
+            .timeline-item { flex-direction: row; gap: 16px; }
+            .admin-tabs { overflow-x: auto; }
+            .login-box { margin: 20px; padding: 24px; }
+        }
+    </style>
+<base target="_blank">
 </head>
 <body>
-    <!-- Notificação de Novo Pedido (Admin) -->
+    <!-- Notificação -->
     <div id="notification" class="notification hidden">
         <div class="notification-content">
             <span class="notification-icon">🔔</span>
@@ -27,107 +214,76 @@
             </div>
             <nav class="nav">
                 <button id="btn-cardapio" class="nav-btn active">Cardápio</button>
-                <button id="btn-carrinho" class="nav-btn">
-                    Carrinho
-                    <span id="cart-badge" class="badge hidden">0</span>
-                </button>
-                <button id="btn-admin" class="nav-btn admin-btn">Área Admin</button>
+                <button id="btn-carrinho" class="nav-btn">Carrinho<span id="cart-badge" class="badge hidden">0</span></button>
+                <button id="btn-admin" class="nav-btn">Área Admin</button>
             </nav>
         </div>
     </header>
 
-    <!-- Área do Cliente - Cardápio -->
+    <!-- Área Cliente -->
     <main id="area-cliente" class="main-container">
         <section id="secao-cardapio" class="section active">
             <div class="container">
                 <h2 class="section-title">Nosso Cardápio</h2>
                 <div id="lista-cardapio" class="cardapio-grid">
-                    <!-- Produtos serão carregados dinamicamente do Firebase -->
                     <div class="loading">Carregando cardápio...</div>
                 </div>
             </div>
         </section>
 
-        <!-- Carrinho -->
-        <section id="secao-carrinho" class="section hidden">
+        <section id="secao-carrinho" class="section">
             <div class="container">
                 <h2 class="section-title">Seu Carrinho</h2>
-                <div id="carrinho-conteudo">
-                    <div id="carrinho-vazio" class="empty-state">
-                        <span class="empty-icon">🛒</span>
-                        <p>Seu carrinho está vazio</p>
-                        <button class="btn-primary" onclick="app.navegarPara('cardapio')">Ver Cardápio</button>
-                    </div>
-                    <div id="carrinho-itens" class="hidden">
-                        <div id="lista-carrinho" class="carrinho-lista"></div>
-                        <div class="carrinho-resumo">
-                            <div class="resumo-linha">
-                                <span>Subtotal:</span>
-                                <span id="subtotal">R$ 0,00</span>
-                            </div>
-                            <div class="resumo-linha total">
-                                <span>Total:</span>
-                                <span id="total">R$ 0,00</span>
-                            </div>
-                            <button id="btn-finalizar" class="btn-primary btn-full">Finalizar Pedido</button>
-                        </div>
+                <div id="carrinho-vazio" class="empty-state">
+                    <span class="empty-icon">🛒</span>
+                    <p>Seu carrinho está vazio</p>
+                    <button class="btn-primary" onclick="app.navegarPara('cardapio')">Ver Cardápio</button>
+                </div>
+                <div id="carrinho-com-itens" class="hidden">
+                    <div id="lista-carrinho" class="carrinho-lista"></div>
+                    <div class="carrinho-resumo">
+                        <div class="resumo-linha"><span>Subtotal:</span><span id="subtotal">R$ 0,00</span></div>
+                        <div class="resumo-linha total"><span>Total:</span><span id="total">R$ 0,00</span></div>
+                        <button id="btn-finalizar" class="btn-primary btn-full">Finalizar Pedido</button>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Finalização de Pedido -->
-        <section id="secao-checkout" class="section hidden">
+        <section id="secao-checkout" class="section">
             <div class="container">
                 <h2 class="section-title">Finalizar Pedido</h2>
                 <form id="form-checkout" class="checkout-form">
                     <div class="form-group">
                         <label for="nome">Nome Completo *</label>
-                        <input type="text" id="nome" name="nome" required 
-                               placeholder="Digite seu nome" 
-                               pattern="[A-Za-zÀ-ÿ\s]{3,}"
-                               title="Mínimo 3 caracteres, apenas letras">
+                        <input type="text" id="nome" required placeholder="Digite seu nome" pattern="[A-Za-zÀ-ÿ\s]{3,}">
                     </div>
-                    
                     <div class="form-group">
                         <label for="telefone">Telefone *</label>
-                        <input type="tel" id="telefone" name="telefone" required 
-                               placeholder="(11) 99999-9999"
-                               pattern="\(\d{2}\)\s?\d{4,5}-?\d{4}"
-                               title="Formato: (11) 99999-9999">
+                        <input type="tel" id="telefone" required placeholder="(11) 99999-9999">
                     </div>
-                    
                     <div class="form-group">
                         <label for="endereco">Endereço Completo *</label>
-                        <textarea id="endereco" name="endereco" required 
-                                  placeholder="Rua, número, bairro, complemento"
-                                  rows="3"></textarea>
+                        <textarea id="endereco" required placeholder="Rua, número, bairro, complemento" rows="3"></textarea>
                     </div>
-                    
                     <div class="form-group">
                         <label for="pagamento">Forma de Pagamento *</label>
-                        <select id="pagamento" name="pagamento" required>
+                        <select id="pagamento" required>
                             <option value="">Selecione...</option>
                             <option value="dinheiro">Dinheiro</option>
                             <option value="pix">Pix</option>
                             <option value="cartao">Cartão (na entrega)</option>
                         </select>
                     </div>
-
                     <div id="troco-group" class="form-group hidden">
                         <label for="troco">Precisa de troco para quanto?</label>
-                        <input type="number" id="troco" name="troco" 
-                               placeholder="R$ 0,00" min="0" step="0.01">
+                        <input type="number" id="troco" placeholder="R$ 0,00" min="0" step="0.01">
                     </div>
-
                     <div class="resumo-pedido">
                         <h3>Resumo do Pedido</h3>
-                        <div id="resumo-itens" class="resumo-itens"></div>
-                        <div class="resumo-total">
-                            <strong>Total: <span id="checkout-total">R$ 0,00</span></strong>
-                        </div>
+                        <div id="resumo-itens"></div>
+                        <div class="resumo-total"><strong>Total: <span id="checkout-total">R$ 0,00</span></strong></div>
                     </div>
-
                     <div class="form-actions">
                         <button type="button" class="btn-secondary" onclick="app.navegarPara('carrinho')">Voltar</button>
                         <button type="submit" class="btn-primary">Confirmar Pedido</button>
@@ -136,58 +292,38 @@
             </div>
         </section>
 
-        <!-- Acompanhamento de Pedido -->
-        <section id="secao-pedido" class="section hidden">
+        <section id="secao-pedido" class="section">
             <div class="container">
-                <div id="pedido-status" class="pedido-status">
+                <div class="pedido-status">
                     <div class="status-header">
                         <h2>Pedido #<span id="pedido-numero"></span></h2>
                         <span id="pedido-status-badge" class="status-badge">Recebido</span>
                     </div>
-                    
-                    <div class="timeline">
-                        <div class="timeline-item active" data-status="recebido">
-                            <div class="timeline-icon">📋</div>
-                            <div class="timeline-text">Pedido Recebido</div>
-                        </div>
-                        <div class="timeline-item" data-status="preparo">
-                            <div class="timeline-icon">🍨</div>
-                            <div class="timeline-text">Em Preparo</div>
-                        </div>
-                        <div class="timeline-item" data-status="entrega">
-                            <div class="timeline-icon">🛵</div>
-                            <div class="timeline-text">Saiu para Entrega</div>
-                        </div>
-                        <div class="timeline-item" data-status="entregue">
-                            <div class="timeline-icon">✅</div>
-                            <div class="timeline-text">Entregue</div>
-                        </div>
+                    <div class="timeline" id="timeline">
+                        <div class="timeline-item active" data-status="recebido"><div class="timeline-icon">📋</div><div class="timeline-text">Pedido Recebido</div></div>
+                        <div class="timeline-item" data-status="preparo"><div class="timeline-icon">🍨</div><div class="timeline-text">Em Preparo</div></div>
+                        <div class="timeline-item" data-status="entrega"><div class="timeline-icon">🛵</div><div class="timeline-text">Saiu para Entrega</div></div>
+                        <div class="timeline-item" data-status="entregue"><div class="timeline-icon">✅</div><div class="timeline-text">Entregue</div></div>
                     </div>
-
                     <div id="pedido-cancelado" class="pedido-cancelado hidden">
                         <span class="cancel-icon">❌</span>
                         <h3>Pedido Cancelado</h3>
                         <p>Entre em contato conosco para mais informações.</p>
                     </div>
-
                     <div class="pedido-detalhes">
                         <h3>Detalhes do Pedido</h3>
                         <div id="pedido-itens"></div>
-                        <div class="pedido-total">
-                            <strong>Total: <span id="pedido-total"></span></strong>
-                        </div>
+                        <div class="pedido-total"><strong>Total: <span id="pedido-total"></span></strong></div>
                     </div>
-
                     <button class="btn-primary" onclick="app.navegarPara('cardapio')">Fazer Novo Pedido</button>
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- Área Administrativa -->
+    <!-- Área Admin -->
     <main id="area-admin" class="main-container hidden">
-        <!-- Login Admin -->
-        <section id="secao-login" class="section">
+        <section id="secao-login" class="section active">
             <div class="container">
                 <div class="login-box">
                     <div class="login-header">
@@ -195,46 +331,34 @@
                         <h2>Área Administrativa</h2>
                         <p>Login restrito para gestores</p>
                     </div>
-                    
-                    <form id="form-login" class="login-form">
+                    <form id="form-login">
                         <div class="form-group">
                             <label for="admin-usuario">Usuário</label>
-                            <input type="text" id="admin-usuario" name="usuario" required 
-                                   autocomplete="username">
+                            <input type="text" id="admin-usuario" required>
                         </div>
-                        
                         <div class="form-group">
                             <label for="admin-senha">Senha</label>
-                            <input type="password" id="admin-senha" name="senha" required 
-                                   autocomplete="current-password">
+                            <input type="password" id="admin-senha" required>
                         </div>
-                        
                         <div id="login-erro" class="erro-msg hidden">Usuário ou senha incorretos</div>
-                        
                         <button type="submit" class="btn-primary btn-full">Entrar</button>
                     </form>
                 </div>
             </div>
         </section>
 
-        <!-- Dashboard Admin -->
-        <section id="secao-dashboard" class="section hidden">
+        <section id="secao-dashboard" class="section">
             <div class="container">
                 <div class="admin-header">
                     <h2>Painel de Controle</h2>
-                    <div class="admin-actions">
-                        <button id="btn-logout" class="btn-secondary">Sair</button>
-                    </div>
+                    <button id="btn-logout" class="btn-secondary">Sair</button>
                 </div>
-
-                <!-- Abas Admin -->
                 <div class="admin-tabs">
                     <button class="tab-btn active" data-tab="pedidos">Pedidos</button>
                     <button class="tab-btn" data-tab="cardapio">Cardápio</button>
                     <button class="tab-btn" data-tab="historico">Histórico</button>
                 </div>
 
-                <!-- Aba Pedidos -->
                 <div id="tab-pedidos" class="tab-content active">
                     <div class="pedidos-filtros">
                         <button class="filtro-btn active" data-filtro="todos">Todos</button>
@@ -242,95 +366,506 @@
                         <button class="filtro-btn" data-filtro="preparo">Em Preparo</button>
                         <button class="filtro-btn" data-filtro="entrega">Em Entrega</button>
                     </div>
-                    <div id="admin-pedidos-lista" class="admin-pedidos-lista">
-                        <!-- Pedidos carregados do Firebase -->
-                    </div>
+                    <div id="admin-pedidos-lista" class="admin-pedidos-lista"></div>
                 </div>
 
-                <!-- Aba Cardápio -->
-                <div id="tab-cardapio" class="tab-content hidden">
+                <div id="tab-cardapio" class="tab-content">
                     <div class="cardapio-header">
                         <h3>Gerenciar Cardápio</h3>
                         <button id="btn-novo-produto" class="btn-primary">+ Novo Produto</button>
                     </div>
-                    <div id="admin-cardapio-lista" class="admin-cardapio-lista">
-                        <!-- Itens do cardápio -->
-                    </div>
+                    <div id="admin-cardapio-lista" class="admin-cardapio-lista"></div>
                 </div>
 
-                <!-- Aba Histórico -->
-                <div id="tab-historico" class="tab-content hidden">
-                    <div class="historico-header">
-                        <h3>Histórico de Pedidos</h3>
-                        <div class="historico-stats">
-                            <div class="stat-card">
-                                <span class="stat-value" id="stat-total">0</span>
-                                <span class="stat-label">Total Pedidos</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-value" id="stat-receita">R$ 0,00</span>
-                                <span class="stat-label">Receita Total</span>
-                            </div>
-                        </div>
+                <div id="tab-historico" class="tab-content">
+                    <div class="historico-stats">
+                        <div class="stat-card"><span class="stat-value" id="stat-total">0</span><span class="stat-label">Total Pedidos</span></div>
+                        <div class="stat-card"><span class="stat-value" id="stat-receita">R$ 0,00</span><span class="stat-label">Receita Total</span></div>
                     </div>
-                    <div id="admin-historico-lista" class="admin-pedidos-lista">
-                        <!-- Histórico -->
-                    </div>
+                    <div id="admin-historico-lista" class="admin-pedidos-lista"></div>
                 </div>
             </div>
         </section>
-
-        <!-- Modal Produto -->
-        <div id="modal-produto" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3 id="modal-titulo">Novo Produto</h3>
-                    <button class="modal-close">&times;</button>
-                </div>
-                <form id="form-produto" class="modal-form">
-                    <input type="hidden" id="produto-id">
-                    <div class="form-group">
-                        <label for="prod-nome">Nome *</label>
-                        <input type="text" id="prod-nome" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="prod-descricao">Descrição</label>
-                        <textarea id="prod-descricao" rows="2"></textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="prod-preco">Preço (R$) *</label>
-                            <input type="number" id="prod-preco" required min="0" step="0.01">
-                        </div>
-                        <div class="form-group">
-                            <label for="prod-categoria">Categoria</label>
-                            <select id="prod-categoria">
-                                <option value="acai">Açaí</option>
-                                <option value="complemento">Complemento</option>
-                                <option value="bebida">Bebida</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-group checkbox-group">
-                        <label>
-                            <input type="checkbox" id="prod-disponivel" checked>
-                            Disponível para venda
-                        </label>
-                    </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn-secondary modal-cancel">Cancelar</button>
-                        <button type="submit" class="btn-primary">Salvar</button>
-                    </div>
-                </form>
-            </div>
-        </div>
     </main>
 
-    <!-- Footer -->
+    <!-- Modal Produto -->
+    <div id="modal-produto" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-titulo">Novo Produto</h3>
+                <button class="modal-close" onclick="app.fecharModal()">&times;</button>
+            </div>
+            <form id="form-produto" class="modal-form">
+                <input type="hidden" id="produto-id">
+                <div class="form-group">
+                    <label for="prod-nome">Nome *</label>
+                    <input type="text" id="prod-nome" required>
+                </div>
+                <div class="form-group">
+                    <label for="prod-descricao">Descrição</label>
+                    <textarea id="prod-descricao" rows="2"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="prod-preco">Preço (R$) *</label>
+                        <input type="number" id="prod-preco" required min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="prod-categoria">Categoria</label>
+                        <select id="prod-categoria">
+                            <option value="acai">Açaí</option>
+                            <option value="complemento">Complemento</option>
+                            <option value="bebida">Bebida</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label><input type="checkbox" id="prod-disponivel" checked> Disponível para venda</label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="app.fecharModal()">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <footer class="footer">
         <div class="container">
             <p>&copy; 2026 Açaí Rei - Todos os direitos reservados</p>
         </div>
     </footer>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, push, onValue, update, remove, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD_2W4E60wE9JcoDY0FnaK4xiBCM8jRBVs",
+            authDomain: "acai-rei.firebaseapp.com",
+            databaseURL: "https://acai-rei-default-rtdb.firebaseio.com",
+            projectId: "acai-rei",
+            storageBucket: "acai-rei.firebasestorage.app",
+            messagingSenderId: "1072557437178",
+            appId: "1:1072557437178:web:783dd3e5ead71e34de1943",
+            measurementId: "G-Q5FJQ3VC2F"
+        };
+
+        const appFirebase = initializeApp(firebaseConfig);
+        const db = getDatabase(appFirebase);
+
+        // Utilitários
+        const sanitize = (input) => { if (typeof input !== 'string') return input; const div = document.createElement('div'); div.textContent = input; return div.innerHTML; };
+        const formatarPreco = (valor) => `R$ ${parseFloat(valor).toFixed(2).replace('.', ',')}`;
+        const gerarId = () => { const t = Date.now().toString(36).toUpperCase(); const r = Math.random().toString(36).substring(2, 5).toUpperCase(); return `${t}${r}`; };
+        const formatarTel = (input) => { let v = input.value.replace(/\D/g, ''); if (v.length > 11) v = v.slice(0, 11); if (v.length > 2) v = `(${v.slice(0, 2)}) ${v.slice(2)}`; if (v.length > 9) v = `${v.slice(0, 9)}-${v.slice(9)}`; input.value = v; };
+
+        class AcaiReiApp {
+            constructor() {
+                this.carrinho = [];
+                this.cardapio = [];
+                this.pedidos = [];
+                this.pedidoAtual = null;
+                this.adminLogado = false;
+                this.filtroAtual = 'todos';
+                this.refCardapio = ref(db, 'cardapio');
+                this.refPedidos = ref(db, 'pedidos');
+                this.init();
+            }
+
+            init() {
+                this.carregarDados();
+                this.setupListeners();
+                this.verificarSessao();
+                this.setupRealtime();
+            }
+
+            setupRealtime() {
+                onValue(this.refCardapio, (s) => {
+                    const d = s.val();
+                    this.cardapio = d ? Object.entries(d).map(([id, item]) => ({ id, ...item })) : [];
+                    this.renderCardapio();
+                    this.renderCardapioAdmin();
+                });
+                onValue(this.refPedidos, (s) => {
+                    const d = s.val();
+                    this.pedidos = d ? Object.entries(d).map(([id, item]) => ({ id, ...item })) : [];
+                    this.pedidos.sort((a, b) => b.timestamp - a.timestamp);
+                    this.renderPedidosAdmin();
+                    this.renderHistorico();
+                    if (this.pedidos.filter(p => p.status === 'recebido').length > 0 && this.adminLogado) {
+                        this.showNotificacao('Novos pedidos recebidos!');
+                    }
+                });
+            }
+
+            setupListeners() {
+                document.getElementById('btn-cardapio')?.addEventListener('click', () => this.navegarPara('cardapio'));
+                document.getElementById('btn-carrinho')?.addEventListener('click', () => this.navegarPara('carrinho'));
+                document.getElementById('btn-admin')?.addEventListener('click', () => this.navegarPara('admin'));
+                document.getElementById('btn-finalizar')?.addEventListener('click', () => this.navegarPara('checkout'));
+                document.getElementById('form-checkout')?.addEventListener('submit', (e) => this.finalizarPedido(e));
+                document.getElementById('form-login')?.addEventListener('submit', (e) => this.loginAdmin(e));
+                document.getElementById('form-produto')?.addEventListener('submit', (e) => this.salvarProduto(e));
+                document.getElementById('btn-logout')?.addEventListener('click', () => this.logout());
+                document.getElementById('btn-novo-produto')?.addEventListener('click', () => this.abrirModal());
+                document.getElementById('pagamento')?.addEventListener('change', (e) => {
+                    document.getElementById('troco-group').classList.toggle('hidden', e.target.value !== 'dinheiro');
+                });
+                document.getElementById('telefone')?.addEventListener('input', (e) => formatarTel(e.target));
+
+                document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', (e) => this.mudarTab(e.target.dataset.tab)));
+                document.querySelectorAll('.filtro-btn').forEach(b => b.addEventListener('click', (e) => this.filtrarPedidos(e.target.dataset.filtro)));
+            }
+
+            navegarPara(secao) {
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+                switch(secao) {
+                    case 'cardapio':
+                        document.getElementById('secao-cardapio').classList.add('active');
+                        document.getElementById('btn-cardapio').classList.add('active');
+                        document.getElementById('area-cliente').classList.remove('hidden');
+                        document.getElementById('area-admin').classList.add('hidden');
+                        break;
+                    case 'carrinho':
+                        document.getElementById('secao-carrinho').classList.add('active');
+                        document.getElementById('btn-carrinho').classList.add('active');
+                        this.renderCarrinho();
+                        break;
+                    case 'checkout':
+                        if (this.carrinho.length === 0) { alert('Carrinho vazio!'); this.navegarPara('cardapio'); return; }
+                        document.getElementById('secao-checkout').classList.add('active');
+                        this.renderCheckout();
+                        break;
+                    case 'pedido':
+                        document.getElementById('secao-pedido').classList.add('active');
+                        break;
+                    case 'admin':
+                        document.getElementById('area-cliente').classList.add('hidden');
+                        document.getElementById('area-admin').classList.remove('hidden');
+                        if (!this.adminLogado) document.getElementById('secao-login').classList.add('active');
+                        else { document.getElementById('secao-dashboard').classList.add('active'); this.mudarTab('pedidos'); }
+                        break;
+                }
+                window.scrollTo(0, 0);
+            }
+
+            renderCardapio() {
+                const c = document.getElementById('lista-cardapio');
+                const disp = this.cardapio.filter(i => i.disponivel !== false);
+                if (disp.length === 0) { c.innerHTML = '<div class="empty-state"><p>Nenhum produto disponível.</p></div>'; return; }
+                c.innerHTML = disp.map(i => `
+                    <div class="produto-card">
+                        <div class="produto-imagem">🍨</div>
+                        <div class="produto-info">
+                            <h3 class="produto-nome">${sanitize(i.nome)}</h3>
+                            <p class="produto-descricao">${sanitize(i.descricao || '')}</p>
+                            <div class="produto-footer">
+                                <span class="produto-preco">${formatarPreco(i.preco)}</span>
+                                <button class="btn-add" onclick="app.adicionarCarrinho('${i.id}')">Adicionar +</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            adicionarCarrinho(id) {
+                const p = this.cardapio.find(x => x.id === id);
+                if (!p) return;
+                const e = this.carrinho.find(x => x.id === id);
+                if (e) e.quantidade++; else this.carrinho.push({ id: p.id, nome: p.nome, preco: p.preco, quantidade: 1 });
+                this.updateBadge();
+                this.showFeedback('Item adicionado!');
+            }
+
+            removerCarrinho(id) { this.carrinho = this.carrinho.filter(x => x.id !== id); this.renderCarrinho(); this.updateBadge(); }
+
+            alterarQtd(id, d) {
+                const i = this.carrinho.find(x => x.id === id);
+                if (!i) return;
+                i.quantidade += d;
+                if (i.quantidade <= 0) this.removerCarrinho(id); else this.renderCarrinho();
+                this.updateBadge();
+            }
+
+            renderCarrinho() {
+                const vazio = document.getElementById('carrinho-vazio');
+                const comItens = document.getElementById('carrinho-com-itens');
+                if (this.carrinho.length === 0) { vazio.classList.remove('hidden'); comItens.classList.add('hidden'); return; }
+                vazio.classList.add('hidden'); comItens.classList.remove('hidden');
+                document.getElementById('lista-carrinho').innerHTML = this.carrinho.map(i => `
+                    <div class="carrinho-item">
+                        <div class="item-imagem">🍨</div>
+                        <div class="item-info"><div class="item-nome">${sanitize(i.nome)}</div><div class="item-preco">${formatarPreco(i.preco)}</div></div>
+                        <div class="item-quantidade">
+                            <button class="btn-qtd" onclick="app.alterarQtd('${i.id}', -1)">-</button>
+                            <span>${i.quantidade}</span>
+                            <button class="btn-qtd" onclick="app.alterarQtd('${i.id}', 1)">+</button>
+                        </div>
+                        <button class="btn-remover" onclick="app.removerCarrinho('${i.id}')">🗑️</button>
+                    </div>
+                `).join('');
+                const total = this.carrinho.reduce((s, i) => s + i.preco * i.quantidade, 0);
+                document.getElementById('subtotal').textContent = formatarPreco(total);
+                document.getElementById('total').textContent = formatarPreco(total);
+            }
+
+            renderCheckout() {
+                const total = this.carrinho.reduce((s, i) => s + i.preco * i.quantidade, 0);
+                document.getElementById('resumo-itens').innerHTML = this.carrinho.map(i => `
+                    <div class="resumo-item"><span>${i.quantidade}x ${sanitize(i.nome)}</span><span>${formatarPreco(i.preco * i.quantidade)}</span></div>
+                `).join('');
+                document.getElementById('checkout-total').textContent = formatarPreco(total);
+            }
+
+            updateBadge() {
+                const b = document.getElementById('cart-badge');
+                const t = this.carrinho.reduce((s, i) => s + i.quantidade, 0);
+                b.textContent = t; b.classList.toggle('hidden', t === 0);
+            }
+
+            async finalizarPedido(e) {
+                e.preventDefault();
+                const nome = document.getElementById('nome').value.trim();
+                const tel = document.getElementById('telefone').value.trim();
+                const end = document.getElementById('endereco').value.trim();
+                const pag = document.getElementById('pagamento').value;
+                if (!nome || !tel || !end || !pag) { alert('Preencha todos os campos!'); return; }
+
+                const id = gerarId();
+                const total = this.carrinho.reduce((s, i) => s + i.preco * i.quantidade, 0);
+                const pedido = {
+                    id, cliente: { nome: sanitize(nome), telefone: tel, endereco: sanitize(end) },
+                    itens: this.carrinho.map(i => ({...i})), pagamento: pag,
+                    troco: pag === 'dinheiro' ? parseFloat(document.getElementById('troco').value) || 0 : null,
+                    total, status: 'recebido', data: new Date().toLocaleString('pt-BR'), timestamp: Date.now()
+                };
+
+                try {
+                    await set(ref(db, `pedidos/${id}`), pedido);
+                    this.carrinho = []; this.updateBadge(); this.pedidoAtual = id;
+                    localStorage.setItem('pedidoAtual', id);
+                    this.mostrarStatus(pedido);
+                    this.navegarPara('pedido');
+                } catch (err) { alert('Erro ao finalizar pedido'); }
+            }
+
+            mostrarStatus(pedido) {
+                document.getElementById('pedido-numero').textContent = pedido.id;
+                this.updateTimeline(pedido.status);
+                onValue(ref(db, `pedidos/${pedido.id}`), (s) => {
+                    const d = s.val(); if (d) { this.updateTimeline(d.status); this.renderDetalhes(d); }
+                });
+            }
+
+            updateTimeline(status) {
+                const badge = document.getElementById('pedido-status-badge');
+                const cancel = document.getElementById('pedido-cancelado');
+                const timeline = document.getElementById('timeline');
+                const labels = { recebido: 'Recebido', preparo: 'Em Preparo', entrega: 'Saiu para Entrega', entregue: 'Entregue', cancelado: 'Cancelado' };
+                badge.className = `status-badge ${status}`; badge.textContent = labels[status];
+                if (status === 'cancelado') { cancel.classList.remove('hidden'); timeline.classList.add('hidden'); return; }
+                cancel.classList.add('hidden'); timeline.classList.remove('hidden');
+                const st = ['recebido', 'preparo', 'entrega', 'entregue'];
+                const idx = st.indexOf(status);
+                document.querySelectorAll('.timeline-item').forEach((el, i) => {
+                    el.classList.remove('active', 'completed');
+                    if (i < idx) el.classList.add('completed'); else if (i === idx) el.classList.add('active');
+                });
+            }
+
+            renderDetalhes(pedido) {
+                document.getElementById('pedido-itens').innerHTML = pedido.itens.map(i => `
+                    <div class="resumo-item"><span>${i.quantidade}x ${sanitize(i.nome)}</span><span>${formatarPreco(i.preco * i.quantidade)}</span></div>
+                `).join('');
+                document.getElementById('pedido-total').textContent = formatarPreco(pedido.total);
+            }
+
+            async loginAdmin(e) {
+                e.preventDefault();
+                const u = document.getElementById('admin-usuario').value;
+                const s = document.getElementById('admin-senha').value;
+                try {
+                    const snap = await get(ref(db, 'config/admin'));
+                    const cfg = snap.val();
+                    if ((u === (cfg?.usuario || 'admin') && s === (cfg?.senha || 'acai123')) || (u === 'admin' && s === 'acai123')) {
+                        this.adminLogado = true; sessionStorage.setItem('adminSession', 'true');
+                        document.getElementById('login-erro').classList.add('hidden');
+                        this.navegarPara('admin');
+                    } else { document.getElementById('login-erro').classList.remove('hidden'); document.getElementById('admin-senha').value = ''; }
+                } catch { if (u === 'admin' && s === 'acai123') { this.adminLogado = true; sessionStorage.setItem('adminSession', 'true'); this.navegarPara('admin'); } }
+            }
+
+            logout() { this.adminLogado = false; sessionStorage.removeItem('adminSession'); this.navegarPara('cardapio'); }
+            verificarSessao() { if (sessionStorage.getItem('adminSession')) this.adminLogado = true; }
+
+            mudarTab(tab) {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+                document.getElementById(`tab-${tab}`).classList.add('active');
+            }
+
+            filtrarPedidos(filtro) {
+                this.filtroAtual = filtro;
+                document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('active'));
+                document.querySelector(`[data-filtro="${filtro}"]`).classList.add('active');
+                this.renderPedidosAdmin();
+            }
+
+            renderPedidosAdmin() {
+                const c = document.getElementById('admin-pedidos-lista');
+                let p = this.pedidos.filter(x => !['entregue', 'cancelado'].includes(x.status));
+                if (this.filtroAtual !== 'todos') p = p.filter(x => x.status === this.filtroAtual);
+                if (p.length === 0) { c.innerHTML = '<p class="empty-state">Nenhum pedido.</p>'; return; }
+                c.innerHTML = p.map(ped => this.cardPedido(ped)).join('');
+            }
+
+            cardPedido(p) {
+                const labels = { recebido: 'Novo', preparo: 'Em Preparo', entrega: 'Em Entrega' };
+                const acts = {
+                    recebido: `<button class="btn-small btn-aceitar" onclick="app.atualizarStatus('${p.id}', 'preparo')">Aceitar</button><button class="btn-small btn-recusar" onclick="app.cancelar('${p.id}')">Recusar</button>`,
+                    preparo: `<button class="btn-small btn-status" onclick="app.atualizarStatus('${p.id}', 'entrega')">Saiu para Entrega</button>`,
+                    entrega: `<button class="btn-small btn-aceitar" onclick="app.atualizarStatus('${p.id}', 'entregue')">Marcar Entregue</button>`
+                };
+                return `
+                    <div class="pedido-card ${p.status}">
+                        <div class="pedido-header">
+                            <div class="pedido-info"><h4>Pedido #${p.id}</h4><div class="pedido-meta">${p.data} | ${p.cliente.nome}</div></div>
+                            <span class="status-badge ${p.status}">${labels[p.status]}</span>
+                        </div>
+                        <div class="pedido-itens-preview">${p.itens.map(i => `${i.quantidade}x ${i.nome}`).join(', ')}<br><strong>Total: ${formatarPreco(p.total)}</strong></div>
+                        <div class="pedido-actions">${acts[p.status] || ''}<button class="btn-small btn-recusar" onclick="app.cancelar('${p.id}')">Cancelar</button></div>
+                    </div>
+                `;
+            }
+
+            async atualizarStatus(id, s) { await update(ref(db, `pedidos/${id}`), { status: s, updatedAt: Date.now() }); this.showFeedback('Status atualizado!'); }
+            async cancelar(id) { if (!confirm('Cancelar pedido?')) return; await update(ref(db, `pedidos/${id}`), { status: 'cancelado', updatedAt: Date.now() }); }
+
+            renderHistorico() {
+                const c = document.getElementById('admin-historico-lista');
+                const h = this.pedidos.filter(p => ['entregue', 'cancelado'].includes(p.status));
+                const total = h.filter(p => p.status === 'entregue').length;
+                const rec = h.filter(p => p.status === 'entregue').reduce((s, p) => s + p.total, 0);
+                document.getElementById('stat-total').textContent = total;
+                document.getElementById('stat-receita').textContent = formatarPreco(rec);
+                if (h.length === 0) { c.innerHTML = '<p class="empty-state">Sem histórico.</p>'; return; }
+                c.innerHTML = h.map(p => `
+                    <div class="pedido-card ${p.status}">
+                        <div class="pedido-header">
+                            <div class="pedido-info"><h4>Pedido #${p.id}</h4><div class="pedido-meta">${p.data}</div></div>
+                            <span class="status-badge ${p.status}">${p.status === 'entregue' ? 'Entregue' : 'Cancelado'}</span>
+                        </div>
+                        <div class="pedido-itens-preview">${p.itens.map(i => `${i.quantidade}x ${i.nome}`).join(', ')}<br><strong>Total: ${formatarPreco(p.total)}</strong></div>
+                    </div>
+                `).join('');
+            }
+
+            renderCardapioAdmin() {
+                const c = document.getElementById('admin-cardapio-lista');
+                if (this.cardapio.length === 0) { c.innerHTML = '<p class="empty-state">Sem produtos.</p>'; return; }
+                c.innerHTML = this.cardapio.map(i => `
+                    <div class="admin-produto-card">
+                        <div class="admin-produto-info">
+                            <h4>${sanitize(i.nome)} ${i.disponivel === false ? '<span class="indisponivel-badge">Indisponível</span>' : ''}</h4>
+                            <p>${sanitize(i.descricao || '')}</p>
+                            <div class="admin-produto-preco">${formatarPreco(i.preco)}</div>
+                        </div>
+                        <div class="admin-produto-actions">
+                            <button class="btn-edit" onclick="app.editarProduto('${i.id}')">✏️</button>
+                            <button class="btn-delete" onclick="app.excluirProduto('${i.id}')">🗑️</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            abrirModal(id = null) {
+                const modal = document.getElementById('modal-produto');
+                const form = document.getElementById('form-produto');
+                form.reset(); document.getElementById('produto-id').value = '';
+                if (id) {
+                    const p = this.cardapio.find(x => x.id === id);
+                    if (p) {
+                        document.getElementById('modal-titulo').textContent = 'Editar Produto';
+                        document.getElementById('produto-id').value = p.id;
+                        document.getElementById('prod-nome').value = p.nome;
+                        document.getElementById('prod-descricao').value = p.descricao || '';
+                        document.getElementById('prod-preco').value = p.preco;
+                        document.getElementById('prod-categoria').value = p.categoria || 'acai';
+                        document.getElementById('prod-disponivel').checked = p.disponivel !== false;
+                    }
+                } else { document.getElementById('modal-titulo').textContent = 'Novo Produto'; }
+                modal.classList.remove('hidden');
+            }
+
+            editarProduto(id) { this.abrirModal(id); }
+            fecharModal() { document.getElementById('modal-produto').classList.add('hidden'); }
+
+            async salvarProduto(e) {
+                e.preventDefault();
+                const id = document.getElementById('produto-id').value;
+                const prod = {
+                    nome: sanitize(document.getElementById('prod-nome').value),
+                    descricao: sanitize(document.getElementById('prod-descricao').value),
+                    preco: parseFloat(document.getElementById('prod-preco').value),
+                    categoria: document.getElementById('prod-categoria').value,
+                    disponivel: document.getElementById('prod-disponivel').checked
+                };
+                try {
+                    if (id) await update(ref(db, `cardapio/${id}`), prod);
+                    else { const r = push(this.refCardapio); await set(r, prod); }
+                    this.fecharModal(); this.showFeedback('Produto salvo!');
+                } catch { alert('Erro ao salvar'); }
+            }
+
+            async excluirProduto(id) { if (!confirm('Excluir produto?')) return; await remove(ref(db, `cardapio/${id}`)); }
+
+            showFeedback(msg) {
+                const t = document.createElement('div'); t.className = 'notification';
+                t.innerHTML = `<div class="notification-content"><span class="notification-icon">✅</span><span class="notification-text">${msg}</span></div>`;
+                document.body.appendChild(t);
+                setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
+            }
+
+            showNotificacao(msg) {
+                const n = document.getElementById('notification');
+                document.querySelector('.notification-text').textContent = msg;
+                n.classList.remove('hidden');
+                setTimeout(() => n.classList.add('hidden'), 5000);
+            }
+
+            async carregarDados() {
+                try {
+                    const s = await get(this.refCardapio);
+                    if (!s.exists()) {
+                        const ini = [
+                            { nome: 'Açaí Tradicional 300ml', descricao: 'Açaí puro na tigela 300ml', preco: 15.90, categoria: 'acai', disponivel: true },
+                            { nome: 'Açaí Tradicional 500ml', descricao: 'Açaí puro na tigela 500ml', preco: 22.90, categoria: 'acai', disponivel: true },
+                            { nome: 'Açaí Completo 500ml', descricao: 'Açaí com granola, banana e leite condensado', preco: 28.90, categoria: 'acai', disponivel: true },
+                            { nome: 'Açaí Premium 700ml', descricao: 'Açaí com mix de frutas e complementos especiais', preco: 35.90, categoria: 'acai', disponivel: true },
+                            { nome: 'Leite Condensado', descricao: 'Adicional de leite condensado', preco: 3.00, categoria: 'complemento', disponivel: true },
+                            { nome: 'Granola', descricao: 'Adicional de granola', preco: 2.50, categoria: 'complemento', disponivel: true }
+                        ];
+                        for (const p of ini) { const r = push(this.refCardapio); await set(r, p); }
+                    }
+                } catch (e) { console.error(e); }
+                const pa = localStorage.getItem('pedidoAtual');
+                if (pa) {
+                    try {
+                        const s = await get(ref(db, `pedidos/${pa}`));
+                        if (s.exists() && !['entregue', 'cancelado'].includes(s.val().status)) {
+                            this.pedidoAtual = pa; this.mostrarStatus(s.val());
+                        } else localStorage.removeItem('pedidoAtual');
+                    } catch { localStorage.removeItem('pedidoAtual'); }
+                }
+            }
+        }
+
+        window.app = new AcaiReiApp();
+    </script>
 </body>
 </html>
