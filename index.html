@@ -1,362 +1,336 @@
-
-# Criando os três arquivos da aplicação Açaí Rei
-
-html_content = '''<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Açaí Rei Delivery</title>
+    <meta name="description" content="Açaí Rei - Delivery de Açaí Premium">
+    <title>Açaí Rei - Delivery</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase SDK -->
+    <script type="module" src="script.js" defer></script>
 </head>
 <body>
-    <!-- Notificação Toast -->
-    <div id="toast-container"></div>
-    
-    <!-- Overlay de Loading -->
-    <div id="loading-overlay" class="loading-overlay hidden">
-        <div class="spinner"></div>
+    <!-- Notificação de Novo Pedido (Admin) -->
+    <div id="notification" class="notification hidden">
+        <div class="notification-content">
+            <span class="notification-icon">🔔</span>
+            <span class="notification-text">Novo pedido recebido!</span>
+        </div>
     </div>
 
-    <!-- HEADER -->
+    <!-- Header -->
     <header class="header">
-        <div class="header-content">
-            <div class="logo" id="logo" onclick="handleLogoClick()">
-                <i class="fas fa-crown"></i>
-                <span>Açaí Rei</span>
+        <div class="container">
+            <div class="logo">
+                <span class="logo-icon">👑</span>
+                <h1>Açaí Rei</h1>
             </div>
-            <nav class="nav-buttons">
-                <button class="nav-btn" onclick="showSection('menu')">
-                    <i class="fas fa-utensils"></i>
-                    <span>Cardápio</span>
+            <nav class="nav">
+                <button id="btn-cardapio" class="nav-btn active">Cardápio</button>
+                <button id="btn-carrinho" class="nav-btn">
+                    Carrinho
+                    <span id="cart-badge" class="badge hidden">0</span>
                 </button>
-                <button class="nav-btn cart-btn" onclick="showSection('cart')">
-                    <i class="fas fa-shopping-cart"></i>
-                    <span>Carrinho</span>
-                    <span id="cart-badge" class="cart-badge">0</span>
-                </button>
-                <button class="nav-btn" onclick="showSection('orders')">
-                    <i class="fas fa-list-alt"></i>
-                    <span>Meus Pedidos</span>
-                </button>
+                <button id="btn-admin" class="nav-btn admin-btn">Área Admin</button>
             </nav>
         </div>
     </header>
 
-    <!-- MAIN CONTENT -->
-    <main class="main-content">
-        
-        <!-- SEÇÃO CARDÁPIO -->
-        <section id="section-menu" class="section active">
-            <div class="hero">
-                <h1>O Melhor Açaí da Cidade!</h1>
-                <p>Peça agora e receba em minutos</p>
-            </div>
-            
-            <div class="menu-container">
-                <h2 class="section-title">
-                    <i class="fas fa-ice-cream"></i>
-                    Nosso Cardápio
-                </h2>
-                <div id="menu-grid" class="menu-grid">
-                    <!-- Itens do cardápio serão inseridos aqui via JS -->
+    <!-- Área do Cliente - Cardápio -->
+    <main id="area-cliente" class="main-container">
+        <section id="secao-cardapio" class="section active">
+            <div class="container">
+                <h2 class="section-title">Nosso Cardápio</h2>
+                <div id="lista-cardapio" class="cardapio-grid">
+                    <!-- Produtos serão carregados dinamicamente do Firebase -->
+                    <div class="loading">Carregando cardápio...</div>
                 </div>
             </div>
         </section>
 
-        <!-- SEÇÃO CARRINHO -->
-        <section id="section-cart" class="section">
-            <div class="cart-container">
-                <h2 class="section-title">
-                    <i class="fas fa-shopping-cart"></i>
-                    Seu Carrinho
-                </h2>
-                
-                <div id="cart-items" class="cart-items">
-                    <div class="empty-state">
-                        <i class="fas fa-shopping-basket"></i>
+        <!-- Carrinho -->
+        <section id="secao-carrinho" class="section hidden">
+            <div class="container">
+                <h2 class="section-title">Seu Carrinho</h2>
+                <div id="carrinho-conteudo">
+                    <div id="carrinho-vazio" class="empty-state">
+                        <span class="empty-icon">🛒</span>
                         <p>Seu carrinho está vazio</p>
-                        <button class="btn-primary" onclick="showSection('menu')">Ver Cardápio</button>
+                        <button class="btn-primary" onclick="app.navegarPara('cardapio')">Ver Cardápio</button>
                     </div>
-                </div>
-                
-                <div id="cart-summary" class="cart-summary hidden">
-                    <div class="summary-row">
-                        <span>Subtotal</span>
-                        <span id="subtotal">R$ 0,00</span>
+                    <div id="carrinho-itens" class="hidden">
+                        <div id="lista-carrinho" class="carrinho-lista"></div>
+                        <div class="carrinho-resumo">
+                            <div class="resumo-linha">
+                                <span>Subtotal:</span>
+                                <span id="subtotal">R$ 0,00</span>
+                            </div>
+                            <div class="resumo-linha total">
+                                <span>Total:</span>
+                                <span id="total">R$ 0,00</span>
+                            </div>
+                            <button id="btn-finalizar" class="btn-primary btn-full">Finalizar Pedido</button>
+                        </div>
                     </div>
-                    <div class="summary-row">
-                        <span>Taxa de entrega</span>
-                        <span id="delivery-fee">R$ 5,00</span>
-                    </div>
-                    <div class="summary-row total">
-                        <span>Total</span>
-                        <span id="total">R$ 0,00</span>
-                    </div>
-                    <button class="btn-primary btn-large" onclick="showCheckout()">
-                        Finalizar Pedido
-                        <i class="fas fa-arrow-right"></i>
-                    </button>
                 </div>
             </div>
         </section>
 
-        <!-- SEÇÃO CHECKOUT -->
-        <section id="section-checkout" class="section">
-            <div class="checkout-container">
-                <h2 class="section-title">
-                    <i class="fas fa-check-circle"></i>
-                    Finalizar Pedido
-                </h2>
-                
-                <form id="checkout-form" class="checkout-form">
+        <!-- Finalização de Pedido -->
+        <section id="secao-checkout" class="section hidden">
+            <div class="container">
+                <h2 class="section-title">Finalizar Pedido</h2>
+                <form id="form-checkout" class="checkout-form">
                     <div class="form-group">
-                        <label for="customer-name">Nome completo *</label>
-                        <input type="text" id="customer-name" required placeholder="Digite seu nome">
+                        <label for="nome">Nome Completo *</label>
+                        <input type="text" id="nome" name="nome" required 
+                               placeholder="Digite seu nome" 
+                               pattern="[A-Za-zÀ-ÿ\s]{3,}"
+                               title="Mínimo 3 caracteres, apenas letras">
                     </div>
                     
                     <div class="form-group">
-                        <label for="customer-phone">Telefone *</label>
-                        <input type="tel" id="customer-phone" required placeholder="(11) 99999-9999">
+                        <label for="telefone">Telefone *</label>
+                        <input type="tel" id="telefone" name="telefone" required 
+                               placeholder="(11) 99999-9999"
+                               pattern="\(\d{2}\)\s?\d{4,5}-?\d{4}"
+                               title="Formato: (11) 99999-9999">
                     </div>
                     
                     <div class="form-group">
-                        <label for="customer-address">Endereço completo *</label>
-                        <textarea id="customer-address" required placeholder="Rua, número, bairro, complemento..."></textarea>
+                        <label for="endereco">Endereço Completo *</label>
+                        <textarea id="endereco" name="endereco" required 
+                                  placeholder="Rua, número, bairro, complemento"
+                                  rows="3"></textarea>
                     </div>
                     
                     <div class="form-group">
-                        <label>Forma de pagamento *</label>
-                        <div class="payment-options">
-                            <label class="payment-option">
-                                <input type="radio" name="payment" value="dinheiro" checked>
-                                <div class="payment-card">
-                                    <i class="fas fa-money-bill-wave"></i>
-                                    <span>Dinheiro</span>
-                                </div>
-                            </label>
-                            <label class="payment-option">
-                                <input type="radio" name="payment" value="pix">
-                                <div class="payment-card">
-                                    <i class="fas fa-qrcode"></i>
-                                    <span>Pix</span>
-                                </div>
-                            </label>
-                            <label class="payment-option">
-                                <input type="radio" name="payment" value="cartao">
-                                <div class="payment-card">
-                                    <i class="fas fa-credit-card"></i>
-                                    <span>Cartão</span>
-                                </div>
-                            </label>
-                        </div>
+                        <label for="pagamento">Forma de Pagamento *</label>
+                        <select id="pagamento" name="pagamento" required>
+                            <option value="">Selecione...</option>
+                            <option value="dinheiro">Dinheiro</option>
+                            <option value="pix">Pix</option>
+                            <option value="cartao">Cartão (na entrega)</option>
+                        </select>
                     </div>
-                    
-                    <div class="order-summary">
+
+                    <div id="troco-group" class="form-group hidden">
+                        <label for="troco">Precisa de troco para quanto?</label>
+                        <input type="number" id="troco" name="troco" 
+                               placeholder="R$ 0,00" min="0" step="0.01">
+                    </div>
+
+                    <div class="resumo-pedido">
                         <h3>Resumo do Pedido</h3>
-                        <div id="checkout-items"></div>
-                        <div class="summary-row total">
-                            <span>Total a pagar</span>
-                            <span id="checkout-total">R$ 0,00</span>
+                        <div id="resumo-itens" class="resumo-itens"></div>
+                        <div class="resumo-total">
+                            <strong>Total: <span id="checkout-total">R$ 0,00</span></strong>
                         </div>
                     </div>
-                    
-                    <button type="submit" class="btn-primary btn-large">
-                        Confirmar Pedido
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                    
-                    <button type="button" class="btn-secondary" onclick="showSection('cart')">
-                        <i class="fas fa-arrow-left"></i>
-                        Voltar ao Carrinho
-                    </button>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="app.navegarPara('carrinho')">Voltar</button>
+                        <button type="submit" class="btn-primary">Confirmar Pedido</button>
+                    </div>
                 </form>
             </div>
         </section>
 
-        <!-- SEÇÃO MEUS PEDIDOS -->
-        <section id="section-orders" class="section">
-            <div class="orders-container">
-                <h2 class="section-title">
-                    <i class="fas fa-list-alt"></i>
-                    Meus Pedidos
-                </h2>
-                <div id="orders-list">
-                    <div class="empty-state">
-                        <i class="fas fa-clipboard-list"></i>
-                        <p>Você ainda não fez nenhum pedido</p>
-                        <button class="btn-primary" onclick="showSection('menu')">Fazer Pedido</button>
+        <!-- Acompanhamento de Pedido -->
+        <section id="secao-pedido" class="section hidden">
+            <div class="container">
+                <div id="pedido-status" class="pedido-status">
+                    <div class="status-header">
+                        <h2>Pedido #<span id="pedido-numero"></span></h2>
+                        <span id="pedido-status-badge" class="status-badge">Recebido</span>
                     </div>
+                    
+                    <div class="timeline">
+                        <div class="timeline-item active" data-status="recebido">
+                            <div class="timeline-icon">📋</div>
+                            <div class="timeline-text">Pedido Recebido</div>
+                        </div>
+                        <div class="timeline-item" data-status="preparo">
+                            <div class="timeline-icon">🍨</div>
+                            <div class="timeline-text">Em Preparo</div>
+                        </div>
+                        <div class="timeline-item" data-status="entrega">
+                            <div class="timeline-icon">🛵</div>
+                            <div class="timeline-text">Saiu para Entrega</div>
+                        </div>
+                        <div class="timeline-item" data-status="entregue">
+                            <div class="timeline-icon">✅</div>
+                            <div class="timeline-text">Entregue</div>
+                        </div>
+                    </div>
+
+                    <div id="pedido-cancelado" class="pedido-cancelado hidden">
+                        <span class="cancel-icon">❌</span>
+                        <h3>Pedido Cancelado</h3>
+                        <p>Entre em contato conosco para mais informações.</p>
+                    </div>
+
+                    <div class="pedido-detalhes">
+                        <h3>Detalhes do Pedido</h3>
+                        <div id="pedido-itens"></div>
+                        <div class="pedido-total">
+                            <strong>Total: <span id="pedido-total"></span></strong>
+                        </div>
+                    </div>
+
+                    <button class="btn-primary" onclick="app.navegarPara('cardapio')">Fazer Novo Pedido</button>
                 </div>
             </div>
         </section>
-
-        <!-- SEÇÃO STATUS DO PEDIDO -->
-        <section id="section-tracking" class="section">
-            <div class="tracking-container">
-                <h2 class="section-title">
-                    <i class="fas fa-map-marker-alt"></i>
-                    Acompanhar Pedido
-                </h2>
-                
-                <div id="tracking-content">
-                    <div class="order-status-card">
-                        <div class="status-header">
-                            <h3>Pedido #<span id="tracking-order-id"></span></h3>
-                            <span id="tracking-status" class="status-badge"></span>
-                        </div>
-                        
-                        <div class="progress-bar">
-                            <div class="progress-steps">
-                                <div class="step active" data-step="recebido">
-                                    <div class="step-icon"><i class="fas fa-check"></i></div>
-                                    <span>Recebido</span>
-                                </div>
-                                <div class="step" data-step="preparo">
-                                    <div class="step-icon"><i class="fas fa-blender"></i></div>
-                                    <span>Em preparo</span>
-                                </div>
-                                <div class="step" data-step="entrega">
-                                    <div class="step-icon"><i class="fas fa-motorcycle"></i></div>
-                                    <span>Saiu para entrega</span>
-                                </div>
-                                <div class="step" data-step="entregue">
-                                    <div class="step-icon"><i class="fas fa-home"></i></div>
-                                    <span>Entregue</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="order-details">
-                            <h4>Itens do pedido:</h4>
-                            <div id="tracking-items"></div>
-                        </div>
-                        
-                        <button class="btn-primary" onclick="showSection('orders')">
-                            <i class="fas fa-arrow-left"></i>
-                            Voltar aos Pedidos
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
     </main>
 
-    <!-- ÁREA ADMINISTRATIVA -->
-    <div id="admin-modal" class="modal hidden">
-        <div class="modal-content admin-modal">
-            <div class="modal-header">
-                <h2><i class="fas fa-crown"></i> Área Administrativa</h2>
-                <button class="close-btn" onclick="closeAdmin()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <!-- Login Admin -->
-            <div id="admin-login" class="admin-login">
+    <!-- Área Administrativa -->
+    <main id="area-admin" class="main-container hidden">
+        <!-- Login Admin -->
+        <section id="secao-login" class="section">
+            <div class="container">
                 <div class="login-box">
-                    <i class="fas fa-lock"></i>
-                    <h3>Acesso Restrito</h3>
-                    <input type="password" id="admin-password" placeholder="Digite a senha">
-                    <button class="btn-primary" onclick="loginAdmin()">Entrar</button>
-                    <p class="hint">Dica: senha padrão é "admin123"</p>
+                    <div class="login-header">
+                        <span class="login-icon">🔐</span>
+                        <h2>Área Administrativa</h2>
+                        <p>Login restrito para gestores</p>
+                    </div>
+                    
+                    <form id="form-login" class="login-form">
+                        <div class="form-group">
+                            <label for="admin-usuario">Usuário</label>
+                            <input type="text" id="admin-usuario" name="usuario" required 
+                                   autocomplete="username">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="admin-senha">Senha</label>
+                            <input type="password" id="admin-senha" name="senha" required 
+                                   autocomplete="current-password">
+                        </div>
+                        
+                        <div id="login-erro" class="erro-msg hidden">Usuário ou senha incorretos</div>
+                        
+                        <button type="submit" class="btn-primary btn-full">Entrar</button>
+                    </form>
                 </div>
             </div>
-            
-            <!-- Painel Admin -->
-            <div id="admin-panel" class="admin-panel hidden">
+        </section>
+
+        <!-- Dashboard Admin -->
+        <section id="secao-dashboard" class="section hidden">
+            <div class="container">
+                <div class="admin-header">
+                    <h2>Painel de Controle</h2>
+                    <div class="admin-actions">
+                        <button id="btn-logout" class="btn-secondary">Sair</button>
+                    </div>
+                </div>
+
+                <!-- Abas Admin -->
                 <div class="admin-tabs">
-                    <button class="admin-tab active" onclick="showAdminTab('orders')">
-                        <i class="fas fa-clipboard-list"></i>
-                        Pedidos
-                        <span id="new-orders-badge" class="badge">0</span>
-                    </button>
-                    <button class="admin-tab" onclick="showAdminTab('menu')">
-                        <i class="fas fa-ice-cream"></i>
-                        Cardápio
-                    </button>
+                    <button class="tab-btn active" data-tab="pedidos">Pedidos</button>
+                    <button class="tab-btn" data-tab="cardapio">Cardápio</button>
+                    <button class="tab-btn" data-tab="historico">Histórico</button>
                 </div>
-                
-                <!-- Tab Pedidos -->
-                <div id="admin-tab-orders" class="admin-tab-content active">
-                    <div class="admin-filters">
-                        <button class="filter-btn active" onclick="filterOrders('all')">Todos</button>
-                        <button class="filter-btn" onclick="filterOrders('recebido')">Novos</button>
-                        <button class="filter-btn" onclick="filterOrders('preparo')">Em Preparo</button>
-                        <button class="filter-btn" onclick="filterOrders('entrega')">Em Entrega</button>
-                        <button class="filter-btn" onclick="filterOrders('entregue')">Entregues</button>
+
+                <!-- Aba Pedidos -->
+                <div id="tab-pedidos" class="tab-content active">
+                    <div class="pedidos-filtros">
+                        <button class="filtro-btn active" data-filtro="todos">Todos</button>
+                        <button class="filtro-btn" data-filtro="recebido">Novos</button>
+                        <button class="filtro-btn" data-filtro="preparo">Em Preparo</button>
+                        <button class="filtro-btn" data-filtro="entrega">Em Entrega</button>
                     </div>
-                    <div id="admin-orders-list" class="admin-orders-list">
-                        <!-- Pedidos serão inseridos aqui -->
+                    <div id="admin-pedidos-lista" class="admin-pedidos-lista">
+                        <!-- Pedidos carregados do Firebase -->
                     </div>
                 </div>
-                
-                <!-- Tab Cardápio -->
-                <div id="admin-tab-menu" class="admin-tab-content">
-                    <div class="menu-management">
-                        <button class="btn-primary" onclick="showAddItemForm()">
-                            <i class="fas fa-plus"></i>
-                            Adicionar Item
-                        </button>
-                        
-                        <div id="admin-menu-list" class="admin-menu-list">
-                            <!-- Itens do cardápio para edição -->
+
+                <!-- Aba Cardápio -->
+                <div id="tab-cardapio" class="tab-content hidden">
+                    <div class="cardapio-header">
+                        <h3>Gerenciar Cardápio</h3>
+                        <button id="btn-novo-produto" class="btn-primary">+ Novo Produto</button>
+                    </div>
+                    <div id="admin-cardapio-lista" class="admin-cardapio-lista">
+                        <!-- Itens do cardápio -->
+                    </div>
+                </div>
+
+                <!-- Aba Histórico -->
+                <div id="tab-historico" class="tab-content hidden">
+                    <div class="historico-header">
+                        <h3>Histórico de Pedidos</h3>
+                        <div class="historico-stats">
+                            <div class="stat-card">
+                                <span class="stat-value" id="stat-total">0</span>
+                                <span class="stat-label">Total Pedidos</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-value" id="stat-receita">R$ 0,00</span>
+                                <span class="stat-label">Receita Total</span>
+                            </div>
                         </div>
                     </div>
+                    <div id="admin-historico-lista" class="admin-pedidos-lista">
+                        <!-- Histórico -->
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
 
-    <!-- Modal Adicionar/Editar Item -->
-    <div id="item-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="item-modal-title">Adicionar Item</h3>
-                <button class="close-btn" onclick="closeItemModal()">
-                    <i class="fas fa-times"></i>
-                </button>
+        <!-- Modal Produto -->
+        <div id="modal-produto" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-titulo">Novo Produto</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <form id="form-produto" class="modal-form">
+                    <input type="hidden" id="produto-id">
+                    <div class="form-group">
+                        <label for="prod-nome">Nome *</label>
+                        <input type="text" id="prod-nome" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="prod-descricao">Descrição</label>
+                        <textarea id="prod-descricao" rows="2"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="prod-preco">Preço (R$) *</label>
+                            <input type="number" id="prod-preco" required min="0" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label for="prod-categoria">Categoria</label>
+                            <select id="prod-categoria">
+                                <option value="acai">Açaí</option>
+                                <option value="complemento">Complemento</option>
+                                <option value="bebida">Bebida</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="prod-disponivel" checked>
+                            Disponível para venda
+                        </label>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary modal-cancel">Cancelar</button>
+                        <button type="submit" class="btn-primary">Salvar</button>
+                    </div>
+                </form>
             </div>
-            <form id="item-form" class="item-form">
-                <input type="hidden" id="item-id">
-                <div class="form-group">
-                    <label for="item-name">Nome *</label>
-                    <input type="text" id="item-name" required>
-                </div>
-                <div class="form-group">
-                    <label for="item-price">Preço (R$) *</label>
-                    <input type="number" id="item-price" step="0.01" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="item-description">Descrição</label>
-                    <textarea id="item-description" rows="3"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="item-image">URL da Imagem</label>
-                    <input type="url" id="item-image" placeholder="https://...">
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn-secondary" onclick="closeItemModal()">Cancelar</button>
-                    <button type="submit" class="btn-primary">Salvar</button>
-                </div>
-            </form>
         </div>
-    </div>
+    </main>
 
-    <!-- Som de notificação -->
-    <audio id="notification-sound" preload="auto">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmFgU7k9n1unEiBC13yO/eizEIHWq+8+OWT" type="audio/wav">
-    </audio>
-
-    <script src="script.js"></script>
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Açaí Rei - Todos os direitos reservados</p>
+        </div>
+    </footer>
 </body>
-</html>'''
-
-with open('/mnt/kimi/output/index.html', 'w', encoding='utf-8') as f:
-    f.write(html_content)
-
-print("✅ index.html criado com sucesso!")
-print(f"📄 Tamanho: {len(html_content)} caracteres")
+</html>
