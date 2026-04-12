@@ -1,1001 +1,941 @@
+/**
+ * AÇAÍ REI - SISTEMA DE DELIVERY
+ * Integração com Firebase Realtime Database
+ * 
+ * Arquitetura: MVC simplificado com separação de responsabilidades
+ */
 
-js_content = '''// Açaí Rei Delivery - Sistema Completo
-// LocalStorage Keys
-const STORAGE_KEYS = {
-    MENU: 'acai_rei_menu',
-    CART: 'acai_rei_cart',
-    ORDERS: 'acai_rei_orders',
-    ADMIN_LOGGED: 'acai_rei_admin_logged',
-    ORDER_COUNTER: 'acai_rei_order_counter'
+// ============================================
+// CONFIGURAÇÃO FIREBASE
+// ============================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { 
+    getDatabase, 
+    ref, 
+    set, 
+    push, 
+    onValue, 
+    update, 
+    remove,
+    query,
+    orderByChild,
+    get
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+// Configuração Firebase do usuário
+const firebaseConfig = {
+    apiKey: "AIzaSyD_2W4E60wE9JcoDY0FnaK4xiBCM8jRBVs",
+    authDomain: "acai-rei.firebaseapp.com",
+    databaseURL: "https://acai-rei-default-rtdb.firebaseio.com",
+    projectId: "acai-rei",
+    storageBucket: "acai-rei.firebasestorage.app",
+    messagingSenderId: "1072557437178",
+    appId: "1:1072557437178:web:783dd3e5ead71e34de1943",
+    measurementId: "G-Q5FJQ3VC2F"
 };
 
-// Estado global
-let cart = [];
-let menuItems = [];
-let orders = [];
-let isAdminLogged = false;
-let logoClickCount = 0;
-let lastOrderCheck = 0;
-
-// Dados iniciais do cardápio
-const defaultMenu = [
-    {
-        id: 1,
-        name: 'Açaí Tradicional',
-        price: 18.90,
-        description: 'Açaí na tigela 500ml com granola, banana e leite condensado',
-        image: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=400'
-    },
-    {
-        id: 2,
-        name: 'Açaí Premium',
-        price: 24.90,
-        description: 'Açaí 700ml com mix de frutas, granola, leite em pó e mel',
-        image: 'https://images.unsplash.com/photo-1577805947697-89e18249d767?w=400'
-    },
-    {
-        id: 3,
-        name: 'Açaí Power',
-        price: 28.90,
-        description: 'Açaí 700ml com whey protein, banana, aveia e pasta de amendoim',
-        image: 'https://images.unsplash.com/photo-1623593688280-a509c3f69a3d?w=400'
-    },
-    {
-        id: 4,
-        name: 'Açaí Tropical',
-        price: 22.90,
-        description: 'Açaí 500ml com manga, abacaxi, coco ralado e leite condensado',
-        image: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=400'
-    },
-    {
-        id: 5,
-        name: 'Açaí Supreme',
-        price: 32.90,
-        description: 'Açaí 1L com todos os acompanhamentos disponíveis',
-        image: 'https://images.unsplash.com/photo-1577805947697-89e18249d767?w=400'
-    },
-    {
-        id: 6,
-        name: 'Açaí Fit',
-        price: 19.90,
-        description: 'Açaí 500ml sem açúcar com frutas vermelhas e chia',
-        image: 'https://images.unsplash.com/photo-1623593688280-a509c3f69a3d?w=400'
-    }
-];
-
 // Inicialização
-document.addEventListener('DOMContentLoaded', function() {
-    initializeData();
-    loadCart();
-    loadOrders();
-    renderMenu();
-    setupEventListeners();
-    updateCartBadge();
-    checkAdminSession();
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// ============================================
+// UTILITÁRIOS DE SEGURANÇA
+// ============================================
+
+/**
+ * Sanitiza input para prevenir XSS
+ */
+function sanitizeInput(input) {
+    if (typeof input !== 'string') return input;
+    const div = document.createElement('div');
+    div.textContent = input;
+    return div.innerHTML;
+}
+
+/**
+ * Valida telefone brasileiro
+ */
+function validarTelefone(telefone) {
+    const regex = /^\(\d{2}\)\s?\d{4,5}-?\d{4}$/;
+    return regex.test(telefone);
+}
+
+/**
+ * Formata telefone enquanto digita
+ */
+function formatarTelefone(input) {
+    let value = input.value.replace(/\D/g, '');
+    if (value.length > 11) value = value.slice(0, 11);
     
-    // Iniciar polling de pedidos para notificações
-    setInterval(checkNewOrders, 5000);
-});
-
-// Inicializar dados no LocalStorage
-function initializeData() {
-    if (!localStorage.getItem(STORAGE_KEYS.MENU)) {
-        localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(defaultMenu));
+    if (value.length > 2) {
+        value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
     }
-    menuItems = JSON.parse(localStorage.getItem(STORAGE_KEYS.MENU));
-    
-    if (!localStorage.getItem(STORAGE_KEYS.ORDER_COUNTER)) {
-        localStorage.setItem(STORAGE_KEYS.ORDER_COUNTER, '1000');
+    if (value.length > 9) {
+        value = `${value.slice(0, 9)}-${value.slice(9)}`;
     }
+    input.value = value;
 }
 
-// Carregar carrinho
-function loadCart() {
-    const savedCart = localStorage.getItem(STORAGE_KEYS.CART);
-    if (savedCart) {
-        cart = JSON.parse(savedCart);
-    }
+/**
+ * Gera ID único para pedidos
+ */
+function gerarIdPedido() {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+    return `${timestamp}${random}`;
 }
 
-// Salvar carrinho
-function saveCart() {
-    localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(cart));
-    updateCartBadge();
+/**
+ * Formata valor monetário
+ */
+function formatarPreco(valor) {
+    return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',')}`;
 }
 
-// Carregar pedidos
-function loadOrders() {
-    const savedOrders = localStorage.getItem(STORAGE_KEYS.ORDERS);
-    if (savedOrders) {
-        orders = JSON.parse(savedOrders);
-    }
+/**
+ * Data atual formatada
+ */
+function getDataAtual() {
+    return new Date().toLocaleString('pt-BR');
 }
 
-// Salvar pedidos
-function saveOrders() {
-    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
-}
+// ============================================
+// CLASSE PRINCIPAL DA APLICAÇÃO
+// ============================================
 
-// Verificar sessão admin
-function checkAdminSession() {
-    const session = localStorage.getItem(STORAGE_KEYS.ADMIN_LOGGED);
-    if (session === 'true') {
-        isAdminLogged = true;
-    }
-}
-
-// Event Listeners
-function setupEventListeners() {
-    // Formulário de checkout
-    const checkoutForm = document.getElementById('checkout-form');
-    if (checkoutForm) {
-        checkoutForm.addEventListener('submit', handleCheckout);
-    }
-    
-    // Formulário de item
-    const itemForm = document.getElementById('item-form');
-    if (itemForm) {
-        itemForm.addEventListener('submit', handleItemSubmit);
-    }
-    
-    // Tecla ESC para fechar modais
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            closeAllModals();
-        }
-    });
-}
-
-// Navegação entre seções
-function showSection(sectionName) {
-    // Esconder todas as seções
-    document.querySelectorAll('.section').forEach(section => {
-        section.classList.remove('active');
-    });
-    
-    // Mostrar seção solicitada
-    const targetSection = document.getElementById(`section-${sectionName}`);
-    if (targetSection) {
-        targetSection.classList.add('active');
+class AcaiReiApp {
+    constructor() {
+        // Estado da aplicação
+        this.carrinho = [];
+        this.cardapio = [];
+        this.pedidos = [];
+        this.pedidoAtual = null;
+        this.adminLogado = false;
+        this.filtroAtual = 'todos';
         
-        // Atualizar conteúdo específico
-        if (sectionName === 'cart') {
-            renderCart();
-        } else if (sectionName === 'orders') {
-            renderOrders();
-        } else if (sectionName === 'menu') {
-            renderMenu();
-        }
+        // Referências do Firebase
+        this.refCardapio = ref(db, 'cardapio');
+        this.refPedidos = ref(db, 'pedidos');
+        
+        // Inicialização
+        this.init();
     }
-    
-    // Scroll para o topo
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
 
-// Renderizar cardápio
-function renderMenu() {
-    const menuGrid = document.getElementById('menu-grid');
-    if (!menuGrid) return;
+    // ============================================
+    // INICIALIZAÇÃO
+    // ============================================
     
-    menuGrid.innerHTML = menuItems.map(item => `
-        <div class="menu-card">
-            <img src="${item.image || 'https://via.placeholder.com/400x200/6B21A8/FFFFFF?text=Açaí+Rei'}" 
-                 alt="${item.name}" 
-                 class="menu-image"
-                 onerror="this.src='https://via.placeholder.com/400x200/6B21A8/FFFFFF?text=Açaí+Rei'">
-            <div class="menu-content">
-                <div class="menu-header">
-                    <h3 class="menu-title">${item.name}</h3>
-                    <span class="menu-price">R$ ${item.price.toFixed(2)}</span>
-                </div>
-                <p class="menu-description">${item.description}</p>
-                <button class="btn-add-cart" onclick="addToCart(${item.id})">
-                    <i class="fas fa-plus"></i>
-                    Adicionar ao Carrinho
-                </button>
-            </div>
-        </div>
-    `).join('');
-}
+    init() {
+        this.carregarDados();
+        this.setupEventListeners();
+        this.verificarSessaoAdmin();
+        this.setupRealtimeListeners();
+    }
 
-// Adicionar ao carrinho
-function addToCart(itemId) {
-    const item = menuItems.find(i => i.id === itemId);
-    if (!item) return;
-    
-    const existingItem = cart.find(i => i.id === itemId);
-    
-    if (existingItem) {
-        existingItem.quantity += 1;
-    } else {
-        cart.push({
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            image: item.image,
-            quantity: 1
+    /**
+     * Configura listeners em tempo real do Firebase
+     */
+    setupRealtimeListeners() {
+        // Listener do cardápio
+        onValue(this.refCardapio, (snapshot) => {
+            const data = snapshot.val();
+            this.cardapio = data ? Object.entries(data).map(([id, item]) => ({ id, ...item })) : [];
+            this.renderizarCardapio();
+            this.renderizarCardapioAdmin();
+        });
+
+        // Listener de pedidos (para admin)
+        onValue(this.refPedidos, (snapshot) => {
+            const data = snapshot.val();
+            this.pedidos = data ? Object.entries(data).map(([id, item]) => ({ id, ...item })) : [];
+            
+            // Ordena por data (mais recente primeiro)
+            this.pedidos.sort((a, b) => new Date(b.data) - new Date(a.data));
+            
+            this.renderizarPedidosAdmin();
+            this.renderizarHistorico();
+            this.verificarNovosPedidos();
         });
     }
-    
-    saveCart();
-    showToast(`${item.name} adicionado ao carrinho!`, 'success');
-    
-    // Animação no botão do carrinho
-    const cartBtn = document.querySelector('.cart-btn');
-    cartBtn.style.transform = 'scale(1.2)';
-    setTimeout(() => {
-        cartBtn.style.transform = 'scale(1)';
-    }, 200);
-}
 
-// Remover do carrinho
-function removeFromCart(itemId) {
-    cart = cart.filter(item => item.id !== itemId);
-    saveCart();
-    renderCart();
-    showToast('Item removido do carrinho', 'warning');
-}
-
-// Atualizar quantidade
-function updateQuantity(itemId, change) {
-    const item = cart.find(i => i.id === itemId);
-    if (!item) return;
-    
-    item.quantity += change;
-    
-    if (item.quantity <= 0) {
-        removeFromCart(itemId);
-        return;
-    }
-    
-    saveCart();
-    renderCart();
-}
-
-// Renderizar carrinho
-function renderCart() {
-    const cartItems = document.getElementById('cart-items');
-    const cartSummary = document.getElementById('cart-summary');
-    
-    if (!cartItems || !cartSummary) return;
-    
-    if (cart.length === 0) {
-        cartItems.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-shopping-basket"></i>
-                <p>Seu carrinho está vazio</p>
-                <button class="btn-primary" onclick="showSection('menu')">Ver Cardápio</button>
-            </div>
-        `;
-        cartSummary.classList.add('hidden');
-        return;
-    }
-    
-    cartItems.innerHTML = cart.map(item => `
-        <div class="cart-item">
-            <img src="${item.image || 'https://via.placeholder.com/80/6B21A8/FFFFFF?text=Açaí'}" 
-                 alt="${item.name}" 
-                 class="cart-item-image"
-                 onerror="this.src='https://via.placeholder.com/80/6B21A8/FFFFFF?text=Açaí'">
-            <div class="cart-item-details">
-                <h4 class="cart-item-name">${item.name}</h4>
-                <p class="cart-item-price">R$ ${(item.price * item.quantity).toFixed(2)}</p>
-            </div>
-            <div class="cart-item-actions">
-                <div class="quantity-control">
-                    <button class="quantity-btn" onclick="updateQuantity(${item.id}, -1)">
-                        <i class="fas fa-minus"></i>
-                    </button>
-                    <span class="quantity-value">${item.quantity}</span>
-                    <button class="quantity-btn" onclick="updateQuantity(${item.id}, 1)">
-                        <i class="fas fa-plus"></i>
-                    </button>
-                </div>
-                <button class="btn-remove" onclick="removeFromCart(${item.id})">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    `).join('');
-    
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const deliveryFee = 5.00;
-    const total = subtotal + deliveryFee;
-    
-    document.getElementById('subtotal').textContent = `R$ ${subtotal.toFixed(2)}`;
-    document.getElementById('total').textContent = `R$ ${total.toFixed(2)}`;
-    
-    cartSummary.classList.remove('hidden');
-}
-
-// Mostrar checkout
-function showCheckout() {
-    if (cart.length === 0) {
-        showToast('Seu carrinho está vazio!', 'error');
-        return;
-    }
-    
-    showSection('checkout');
-    renderCheckoutSummary();
-}
-
-// Renderizar resumo no checkout
-function renderCheckoutSummary() {
-    const checkoutItems = document.getElementById('checkout-items');
-    const checkoutTotal = document.getElementById('checkout-total');
-    
-    if (!checkoutItems || !checkoutTotal) return;
-    
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const deliveryFee = 5.00;
-    const total = subtotal + deliveryFee;
-    
-    checkoutItems.innerHTML = cart.map(item => `
-        <div class="order-item">
-            <span>${item.quantity}x ${item.name}</span>
-            <span>R$ ${(item.price * item.quantity).toFixed(2)}</span>
-        </div>
-    `).join('');
-    
-    checkoutItems.innerHTML += `
-        <div class="order-item" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed rgba(255,255,255,0.2);">
-            <span>Taxa de entrega</span>
-            <span>R$ ${deliveryFee.toFixed(2)}</span>
-        </div>
-    `;
-    
-    checkoutTotal.textContent = `R$ ${total.toFixed(2)}`;
-}
-
-// Finalizar pedido
-function handleCheckout(e) {
-    e.preventDefault();
-    
-    const name = document.getElementById('customer-name').value;
-    const phone = document.getElementById('customer-phone').value;
-    const address = document.getElementById('customer-address').value;
-    const payment = document.querySelector('input[name="payment"]:checked').value;
-    
-    if (!name || !phone || !address) {
-        showToast('Preencha todos os campos obrigatórios!', 'error');
-        return;
-    }
-    
-    const orderId = parseInt(localStorage.getItem(STORAGE_KEYS.ORDER_COUNTER)) + 1;
-    localStorage.setItem(STORAGE_KEYS.ORDER_COUNTER, orderId.toString());
-    
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const deliveryFee = 5.00;
-    
-    const newOrder = {
-        id: orderId,
-        customer: {
-            name,
-            phone,
-            address
-        },
-        items: [...cart],
-        payment,
-        subtotal,
-        deliveryFee,
-        total: subtotal + deliveryFee,
-        status: 'recebido',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
-    
-    orders.unshift(newOrder);
-    saveOrders();
-    
-    // Limpar carrinho
-    cart = [];
-    saveCart();
-    
-    // Mostrar tracking
-    showOrderTracking(orderId);
-    
-    showToast(`Pedido #${orderId} realizado com sucesso!`, 'success');
-    
-    // Disparar evento de novo pedido para admin
-    localStorage.setItem('acai_rei_new_order', Date.now().toString());
-}
-
-// Mostrar tracking do pedido
-function showOrderTracking(orderId) {
-    const order = orders.find(o => o.id === orderId);
-    if (!order) return;
-    
-    document.getElementById('tracking-order-id').textContent = order.id;
-    
-    updateTrackingStatus(order.status);
-    
-    const trackingItems = document.getElementById('tracking-items');
-    trackingItems.innerHTML = order.items.map(item => `
-        <div class="order-item">
-            <span>${item.quantity}x ${item.name}</span>
-            <span>R$ ${(item.price * item.quantity).toFixed(2)}</span>
-        </div>
-    `).join('');
-    
-    showSection('tracking');
-    
-    // Atualizar status periodicamente
-    startTrackingUpdate(orderId);
-}
-
-// Atualizar visual do status
-function updateTrackingStatus(status) {
-    const statusBadge = document.getElementById('tracking-status');
-    statusBadge.className = `status-badge status-${status}`;
-    statusBadge.textContent = getStatusLabel(status);
-    
-    // Atualizar steps
-    const steps = ['recebido', 'preparo', 'entrega', 'entregue'];
-    const currentIndex = steps.indexOf(status);
-    
-    steps.forEach((step, index) => {
-        const stepEl = document.querySelector(`.step[data-step="${step}"]`);
-        if (stepEl) {
-            stepEl.classList.remove('active', 'completed');
-            if (index < currentIndex) {
-                stepEl.classList.add('completed');
-            } else if (index === currentIndex) {
-                stepEl.classList.add('active');
-            }
+    /**
+     * Verifica se há novos pedidos para notificar admin
+     */
+    verificarNovosPedidos() {
+        const pedidosRecebidos = this.pedidos.filter(p => p.status === 'recebido');
+        if (pedidosRecebidos.length > 0 && this.adminLogado) {
+            this.mostrarNotificacao(`Novos pedidos: ${pedidosRecebidos.length}`);
         }
-    });
-}
+    }
 
-// Atualização periódica do tracking
-function startTrackingUpdate(orderId) {
-    const interval = setInterval(() => {
-        const section = document.getElementById('section-tracking');
-        if (!section.classList.contains('active')) {
-            clearInterval(interval);
+    // ============================================
+    // EVENT LISTENERS
+    // ============================================
+    
+    setupEventListeners() {
+        // Navegação
+        document.getElementById('btn-cardapio')?.addEventListener('click', () => this.navegarPara('cardapio'));
+        document.getElementById('btn-carrinho')?.addEventListener('click', () => this.navegarPara('carrinho'));
+        document.getElementById('btn-admin')?.addEventListener('click', () => this.navegarPara('admin'));
+        document.getElementById('btn-finalizar')?.addEventListener('click', () => this.navegarPara('checkout'));
+        
+        // Formulários
+        document.getElementById('form-checkout')?.addEventListener('submit', (e) => this.finalizarPedido(e));
+        document.getElementById('form-login')?.addEventListener('submit', (e) => this.loginAdmin(e));
+        document.getElementById('form-produto')?.addEventListener('submit', (e) => this.salvarProduto(e));
+        
+        // Admin tabs
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.mudarTab(e.target.dataset.tab));
+        });
+        
+        // Filtros de pedidos
+        document.querySelectorAll('.filtro-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.filtrarPedidos(e.target.dataset.filtro));
+        });
+        
+        // Modal
+        document.getElementById('btn-novo-produto')?.addEventListener('click', () => this.abrirModalProduto());
+        document.querySelector('.modal-close')?.addEventListener('click', () => this.fecharModal());
+        document.querySelector('.modal-cancel')?.addEventListener('click', () => this.fecharModal());
+        
+        // Logout
+        document.getElementById('btn-logout')?.addEventListener('click', () => this.logout());
+        
+        // Forma de pagamento (mostrar/ocultar troco)
+        document.getElementById('pagamento')?.addEventListener('change', (e) => {
+            const trocoGroup = document.getElementById('troco-group');
+            trocoGroup.classList.toggle('hidden', e.target.value !== 'dinheiro');
+        });
+        
+        // Máscara de telefone
+        document.getElementById('telefone')?.addEventListener('input', (e) => formatarTelefone(e.target));
+        
+        // Fechar modal ao clicar fora
+        document.getElementById('modal-produto')?.addEventListener('click', (e) => {
+            if (e.target.id === 'modal-produto') this.fecharModal();
+        });
+    }
+
+    // ============================================
+    // NAVEGAÇÃO
+    // ============================================
+    
+    navegarPara(secao) {
+        // Esconde todas as seções
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        
+        // Mostra seção específica
+        switch(secao) {
+            case 'cardapio':
+                document.getElementById('secao-cardapio').classList.add('active');
+                document.getElementById('btn-cardapio').classList.add('active');
+                document.getElementById('area-cliente').classList.remove('hidden');
+                document.getElementById('area-admin').classList.add('hidden');
+                break;
+                
+            case 'carrinho':
+                document.getElementById('secao-carrinho').classList.add('active');
+                document.getElementById('btn-carrinho').classList.add('active');
+                this.renderizarCarrinho();
+                break;
+                
+            case 'checkout':
+                if (this.carrinho.length === 0) {
+                    alert('Seu carrinho está vazio!');
+                    this.navegarPara('cardapio');
+                    return;
+                }
+                document.getElementById('secao-checkout').classList.add('active');
+                this.renderizarResumoCheckout();
+                break;
+                
+            case 'pedido':
+                document.getElementById('secao-pedido').classList.add('active');
+                break;
+                
+            case 'admin':
+                document.getElementById('area-cliente').classList.add('hidden');
+                document.getElementById('area-admin').classList.remove('hidden');
+                if (!this.adminLogado) {
+                    document.getElementById('secao-login').classList.add('active');
+                } else {
+                    document.getElementById('secao-dashboard').classList.add('active');
+                    this.mudarTab('pedidos');
+                }
+                break;
+        }
+        
+        window.scrollTo(0, 0);
+    }
+
+    // ============================================
+    // CARDÁPIO (CLIENTE)
+    // ============================================
+    
+    renderizarCardapio() {
+        const container = document.getElementById('lista-cardapio');
+        if (!container) return;
+        
+        const disponiveis = this.cardapio.filter(item => item.disponivel !== false);
+        
+        if (disponiveis.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p>Nenhum produto disponível no momento.</p></div>';
             return;
         }
         
-        loadOrders();
-        const order = orders.find(o => o.id === orderId);
-        if (order) {
-            updateTrackingStatus(order.status);
-            
-            if (order.status === 'entregue' || order.status === 'cancelado') {
-                clearInterval(interval);
-            }
-        }
-    }, 3000);
-}
-
-// Renderizar pedidos do cliente
-function renderOrders() {
-    const ordersList = document.getElementById('orders-list');
-    if (!ordersList) return;
-    
-    if (orders.length === 0) {
-        ordersList.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-clipboard-list"></i>
-                <p>Você ainda não fez nenhum pedido</p>
-                <button class="btn-primary" onclick="showSection('menu')">Fazer Pedido</button>
-            </div>
-        `;
-        return;
-    }
-    
-    ordersList.innerHTML = orders.map(order => `
-        <div class="order-card" onclick="showOrderTracking(${order.id})" style="cursor: pointer;">
-            <div class="order-header">
-                <div>
-                    <span class="order-id">Pedido #${order.id}</span>
-                    <p class="order-date">${formatDate(order.createdAt)}</p>
-                </div>
-                <span class="status-badge status-${order.status}">${getStatusLabel(order.status)}</span>
-            </div>
-            <div class="order-items">
-                ${order.items.map(item => `
-                    <div class="order-item">
-                        <span>${item.quantity}x ${item.name}</span>
-                        <span>R$ ${(item.price * item.quantity).toFixed(2)}</span>
+        container.innerHTML = disponiveis.map(item => `
+            <div class="produto-card ${item.disponivel === false ? 'produto-indisponivel' : ''}">
+                <div class="produto-imagem">🍨</div>
+                <div class="produto-info">
+                    <h3 class="produto-nome">${sanitizeInput(item.nome)}</h3>
+                    <p class="produto-descricao">${sanitizeInput(item.descricao || '')}</p>
+                    <div class="produto-footer">
+                        <span class="produto-preco">${formatarPreco(item.preco)}</span>
+                        <button class="btn-add" onclick="app.adicionarAoCarrinho('${item.id}')" 
+                                ${item.disponivel === false ? 'disabled' : ''}>
+                            ${item.disponivel === false ? 'Indisponível' : 'Adicionar +'}
+                        </button>
                     </div>
-                `).join('')}
-            </div>
-            <div class="order-total">
-                <span>Total</span>
-                <span>R$ ${order.total.toFixed(2)}</span>
-            </div>
-        </div>
-    `).join('');
-}
-
-// ÁREA ADMINISTRATIVA
-
-// Clique no logo (5 cliques para abrir admin)
-function handleLogoClick() {
-    logoClickCount++;
-    
-    if (logoClickCount >= 5) {
-        logoClickCount = 0;
-        openAdmin();
-    } else if (logoClickCount > 2) {
-        // Feedback visual
-        const logo = document.getElementById('logo');
-        logo.style.transform = `scale(${1 + logoClickCount * 0.1})`;
-        setTimeout(() => {
-            logo.style.transform = 'scale(1)';
-        }, 200);
-    }
-    
-    // Reset após 2 segundos
-    clearTimeout(window.logoClickTimeout);
-    window.logoClickTimeout = setTimeout(() => {
-        logoClickCount = 0;
-    }, 2000);
-}
-
-// Abrir admin
-function openAdmin() {
-    const modal = document.getElementById('admin-modal');
-    modal.classList.remove('hidden');
-    
-    if (isAdminLogged) {
-        showAdminPanel();
-    } else {
-        showAdminLogin();
-    }
-}
-
-// Fechar admin
-function closeAdmin() {
-    const modal = document.getElementById('admin-modal');
-    modal.classList.add('hidden');
-}
-
-// Mostrar login
-function showAdminLogin() {
-    document.getElementById('admin-login').classList.remove('hidden');
-    document.getElementById('admin-panel').classList.add('hidden');
-}
-
-// Mostrar painel
-function showAdminPanel() {
-    document.getElementById('admin-login').classList.add('hidden');
-    document.getElementById('admin-panel').classList.remove('hidden');
-    showAdminTab('orders');
-}
-
-// Login
-function loginAdmin() {
-    const password = document.getElementById('admin-password').value;
-    
-    if (password === 'admin123') {
-        isAdminLogged = true;
-        localStorage.setItem(STORAGE_KEYS.ADMIN_LOGGED, 'true');
-        showToast('Login realizado com sucesso!', 'success');
-        showAdminPanel();
-    } else {
-        showToast('Senha incorreta!', 'error');
-    }
-}
-
-// Tabs do admin
-function showAdminTab(tabName) {
-    // Atualizar botões
-    document.querySelectorAll('.admin-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    event.target.classList.add('active');
-    
-    // Atualizar conteúdo
-    document.querySelectorAll('.admin-tab-content').forEach(content => {
-        content.classList.remove('active');
-    });
-    document.getElementById(`admin-tab-${tabName}`).classList.add('active');
-    
-    // Renderizar conteúdo
-    if (tabName === 'orders') {
-        renderAdminOrders();
-    } else if (tabName === 'menu') {
-        renderAdminMenu();
-    }
-}
-
-// Renderizar pedidos no admin
-let currentFilter = 'all';
-
-function renderAdminOrders() {
-    const container = document.getElementById('admin-orders-list');
-    if (!container) return;
-    
-    loadOrders();
-    
-    let filteredOrders = orders;
-    if (currentFilter !== 'all') {
-        filteredOrders = orders.filter(o => o.status === currentFilter);
-    }
-    
-    // Atualizar badge de novos pedidos
-    const newOrders = orders.filter(o => o.status === 'recebido').length;
-    const badge = document.getElementById('new-orders-badge');
-    if (badge) {
-        badge.textContent = newOrders;
-        badge.style.display = newOrders > 0 ? 'block' : 'none';
-    }
-    
-    if (filteredOrders.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-clipboard-check"></i>
-                <p>Nenhum pedido ${currentFilter !== 'all' ? 'com este status' : ''}</p>
-            </div>
-        `;
-        return;
-    }
-    
-    container.innerHTML = filteredOrders.map(order => `
-        <div class="admin-order-card">
-            <div class="admin-order-header">
-                <div class="admin-order-info">
-                    <h4>Pedido #${order.id}</h4>
-                    <p>
-                        <i class="fas fa-user"></i> ${order.customer.name} | 
-                        <i class="fas fa-phone"></i> ${order.customer.phone} | 
-                        <i class="fas fa-clock"></i> ${formatDate(order.createdAt)}
-                    </p>
-                    <p><i class="fas fa-map-marker-alt"></i> ${order.customer.address}</p>
-                    <p><i class="fas fa-money-bill"></i> ${getPaymentLabel(order.payment)} | 
-                       <strong>R$ ${order.total.toFixed(2)}</strong></p>
                 </div>
-                <span class="status-badge status-${order.status}">${getStatusLabel(order.status)}</span>
             </div>
-            <div class="order-items" style="margin: 1rem 0; padding: 0.5rem 0;">
-                ${order.items.map(item => `
-                    <div class="order-item" style="font-size: 0.875rem;">
-                        <span>${item.quantity}x ${item.name}</span>
-                        <span>R$ ${(item.price * item.quantity).toFixed(2)}</span>
-                    </div>
-                `).join('')}
-            </div>
-            <div class="admin-order-actions">
-                ${order.status === 'recebido' ? `
-                    <button class="action-btn preparo" onclick="updateOrderStatus(${order.id}, 'preparo')">
-                        <i class="fas fa-check"></i> Aceitar
-                    </button>
-                    <button class="action-btn cancelar" onclick="updateOrderStatus(${order.id}, 'cancelado')">
-                        <i class="fas fa-times"></i> Recusar
-                    </button>
-                ` : ''}
-                ${order.status === 'preparo' ? `
-                    <button class="action-btn entrega" onclick="updateOrderStatus(${order.id}, 'entrega')">
-                        <i class="fas fa-motorcycle"></i> Saiu para Entrega
-                    </button>
-                ` : ''}
-                ${order.status === 'entrega' ? `
-                    <button class="action-btn entregue" onclick="updateOrderStatus(${order.id}, 'entregue')">
-                        <i class="fas fa-check-circle"></i> Marcar Entregue
-                    </button>
-                ` : ''}
-                ${order.status !== 'cancelado' && order.status !== 'entregue' ? `
-                    <button class="action-btn cancelar" onclick="updateOrderStatus(${order.id}, 'cancelado')">
-                        <i class="fas fa-ban"></i> Cancelar
-                    </button>
-                ` : ''}
-            </div>
-        </div>
-    `).join('');
-}
-
-// Filtrar pedidos
-function filterOrders(status) {
-    currentFilter = status;
-    
-    // Atualizar botões
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    event.target.classList.add('active');
-    
-    renderAdminOrders();
-}
-
-// Atualizar status do pedido
-function updateOrderStatus(orderId, newStatus) {
-    const order = orders.find(o => o.id === orderId);
-    if (!order) return;
-    
-    order.status = newStatus;
-    order.updatedAt = new Date().toISOString();
-    
-    saveOrders();
-    renderAdminOrders();
-    
-    showToast(`Pedido #${orderId} atualizado para: ${getStatusLabel(newStatus)}`, 'success');
-    
-    // Notificar cliente (simulado via localStorage)
-    localStorage.setItem(`acai_rei_order_${orderId}_updated`, Date.now().toString());
-}
-
-// Renderizar menu no admin
-function renderAdminMenu() {
-    const container = document.getElementById('admin-menu-list');
-    if (!container) return;
-    
-    container.innerHTML = menuItems.map(item => `
-        <div class="admin-menu-item">
-            <img src="${item.image || 'https://via.placeholder.com/300x150/6B21A8/FFFFFF?text=Açaí+Rei'}" 
-                 alt="${item.name}"
-                 onerror="this.src='https://via.placeholder.com/300x150/6B21A8/FFFFFF?text=Açaí+Rei'">
-            <h4>${item.name}</h4>
-            <p>${item.description || 'Sem descrição'}</p>
-            <span class="price">R$ ${item.price.toFixed(2)}</span>
-            <div class="admin-item-actions">
-                <button class="btn-edit" onclick="editItem(${item.id})">
-                    <i class="fas fa-edit"></i> Editar
-                </button>
-                <button class="btn-delete" onclick="deleteItem(${item.id})">
-                    <i class="fas fa-trash"></i> Excluir
-                </button>
-            </div>
-        </div>
-    `).join('');
-}
-
-// Mostrar formulário de adicionar item
-function showAddItemForm() {
-    document.getElementById('item-modal-title').textContent = 'Adicionar Item';
-    document.getElementById('item-id').value = '';
-    document.getElementById('item-name').value = '';
-    document.getElementById('item-price').value = '';
-    document.getElementById('item-description').value = '';
-    document.getElementById('item-image').value = '';
-    
-    document.getElementById('item-modal').classList.remove('hidden');
-}
-
-// Editar item
-function editItem(itemId) {
-    const item = menuItems.find(i => i.id === itemId);
-    if (!item) return;
-    
-    document.getElementById('item-modal-title').textContent = 'Editar Item';
-    document.getElementById('item-id').value = item.id;
-    document.getElementById('item-name').value = item.name;
-    document.getElementById('item-price').value = item.price;
-    document.getElementById('item-description').value = item.description || '';
-    document.getElementById('item-image').value = item.image || '';
-    
-    document.getElementById('item-modal').classList.remove('hidden');
-}
-
-// Excluir item
-function deleteItem(itemId) {
-    if (!confirm('Tem certeza que deseja excluir este item?')) return;
-    
-    menuItems = menuItems.filter(i => i.id !== itemId);
-    localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(menuItems));
-    
-    renderAdminMenu();
-    renderMenu();
-    
-    showToast('Item excluído com sucesso!', 'success');
-}
-
-// Fechar modal de item
-function closeItemModal() {
-    document.getElementById('item-modal').classList.add('hidden');
-}
-
-// Submeter formulário de item
-function handleItemSubmit(e) {
-    e.preventDefault();
-    
-    const id = document.getElementById('item-id').value;
-    const name = document.getElementById('item-name').value;
-    const price = parseFloat(document.getElementById('item-price').value);
-    const description = document.getElementById('item-description').value;
-    const image = document.getElementById('item-image').value;
-    
-    if (!name || isNaN(price)) {
-        showToast('Preencha todos os campos obrigatórios!', 'error');
-        return;
+        `).join('');
     }
-    
-    if (id) {
-        // Editar
-        const item = menuItems.find(i => i.id === parseInt(id));
-        if (item) {
-            item.name = name;
-            item.price = price;
-            item.description = description;
-            item.image = image;
-        }
-        showToast('Item atualizado com sucesso!', 'success');
-    } else {
-        // Adicionar
-        const newId = Math.max(...menuItems.map(i => i.id), 0) + 1;
-        menuItems.push({
-            id: newId,
-            name,
-            price,
-            description,
-            image
-        });
-        showToast('Item adicionado com sucesso!', 'success');
-    }
-    
-    localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(menuItems));
-    
-    closeItemModal();
-    renderAdminMenu();
-    renderMenu();
-}
 
-// Verificar novos pedidos (para notificações)
-function checkNewOrders() {
-    if (!isAdminLogged) return;
+    // ============================================
+    // CARRINHO
+    // ============================================
     
-    const orders = JSON.parse(localStorage.getItem(STORAGE_KEYS.ORDERS) || '[]');
-    const newOrders = orders.filter(o => o.status === 'recebido');
-    
-    if (newOrders.length > lastOrderCheck) {
-        // Tocar som de notificação
-        const sound = document.getElementById('notification-sound');
-        if (sound) {
-            sound.volume = 0.3;
-            sound.play().catch(() => {});
+    adicionarAoCarrinho(produtoId) {
+        const produto = this.cardapio.find(p => p.id === produtoId);
+        if (!produto || produto.disponivel === false) return;
+        
+        const existente = this.carrinho.find(item => item.id === produtoId);
+        if (existente) {
+            existente.quantidade++;
+        } else {
+            this.carrinho.push({
+                id: produto.id,
+                nome: produto.nome,
+                preco: produto.preco,
+                quantidade: 1
+            });
         }
         
-        showToast(`🎉 ${newOrders.length} novo(s) pedido(s) recebido(s)!`, 'success');
+        this.atualizarBadgeCarrinho();
+        this.mostrarFeedback('Item adicionado ao carrinho!');
+    }
+
+    removerDoCarrinho(produtoId) {
+        this.carrinho = this.carrinho.filter(item => item.id !== produtoId);
+        this.renderizarCarrinho();
+        this.atualizarBadgeCarrinho();
+    }
+
+    alterarQuantidade(produtoId, delta) {
+        const item = this.carrinho.find(i => i.id === produtoId);
+        if (!item) return;
+        
+        item.quantidade += delta;
+        if (item.quantidade <= 0) {
+            this.removerDoCarrinho(produtoId);
+        } else {
+            this.renderizarCarrinho();
+            this.atualizarBadgeCarrinho();
+        }
+    }
+
+    renderizarCarrinho() {
+        const containerItens = document.getElementById('lista-carrinho');
+        const vazio = document.getElementById('carrinho-vazio');
+        const comItens = document.getElementById('carrinho-itens');
+        
+        if (this.carrinho.length === 0) {
+            vazio.classList.remove('hidden');
+            comItens.classList.add('hidden');
+            return;
+        }
+        
+        vazio.classList.add('hidden');
+        comItens.classList.remove('hidden');
+        
+        containerItens.innerHTML = this.carrinho.map(item => `
+            <div class="carrinho-item">
+                <div class="item-imagem">🍨</div>
+                <div class="item-info">
+                    <div class="item-nome">${sanitizeInput(item.nome)}</div>
+                    <div class="item-preco">${formatarPreco(item.preco)}</div>
+                </div>
+                <div class="item-quantidade">
+                    <button class="btn-qtd" onclick="app.alterarQuantidade('${item.id}', -1)">-</button>
+                    <span>${item.quantidade}</span>
+                    <button class="btn-qtd" onclick="app.alterarQuantidade('${item.id}', 1)">+</button>
+                </div>
+                <button class="btn-remover" onclick="app.removerDoCarrinho('${item.id}')" title="Remover">🗑️</button>
+            </div>
+        `).join('');
+        
+        const total = this.carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+        document.getElementById('subtotal').textContent = formatarPreco(total);
+        document.getElementById('total').textContent = formatarPreco(total);
+    }
+
+    renderizarResumoCheckout() {
+        const container = document.getElementById('resumo-itens');
+        const total = this.carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+        
+        container.innerHTML = this.carrinho.map(item => `
+            <div class="resumo-item">
+                <span>${item.quantidade}x ${sanitizeInput(item.nome)}</span>
+                <span>${formatarPreco(item.preco * item.quantidade)}</span>
+            </div>
+        `).join('');
+        
+        document.getElementById('checkout-total').textContent = formatarPreco(total);
+    }
+
+    atualizarBadgeCarrinho() {
+        const badge = document.getElementById('cart-badge');
+        const total = this.carrinho.reduce((sum, item) => sum + item.quantidade, 0);
+        
+        if (total > 0) {
+            badge.textContent = total;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+    // ============================================
+    // FINALIZAR PEDIDO
+    // ============================================
+    
+    async finalizarPedido(e) {
+        e.preventDefault();
+        
+        // Validação
+        const nome = document.getElementById('nome').value.trim();
+        const telefone = document.getElementById('telefone').value.trim();
+        const endereco = document.getElementById('endereco').value.trim();
+        const pagamento = document.getElementById('pagamento').value;
+        const troco = document.getElementById('troco').value;
+        
+        if (!nome || !telefone || !endereco || !pagamento) {
+            alert('Preencha todos os campos obrigatórios!');
+            return;
+        }
+        
+        if (!validarTelefone(telefone)) {
+            alert('Formato de telefone inválido! Use: (11) 99999-9999');
+            return;
+        }
+        
+        // Criar objeto do pedido
+        const pedidoId = gerarIdPedido();
+        const total = this.carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+        
+        const pedido = {
+            id: pedidoId,
+            cliente: {
+                nome: sanitizeInput(nome),
+                telefone: sanitizeInput(telefone),
+                endereco: sanitizeInput(endereco)
+            },
+            itens: this.carrinho.map(item => ({...item})),
+            pagamento: pagamento,
+            troco: pagamento === 'dinheiro' ? parseFloat(troco) || 0 : null,
+            total: total,
+            status: 'recebido',
+            data: getDataAtual(),
+            timestamp: Date.now()
+        };
+        
+        try {
+            // Salvar no Firebase
+            await set(ref(db, `pedidos/${pedidoId}`), pedido);
+            
+            // Limpar carrinho e mostrar status
+            this.carrinho = [];
+            this.atualizarBadgeCarrinho();
+            this.pedidoAtual = pedidoId;
+            
+            // Salvar ID do pedido no localStorage para acompanhamento
+            localStorage.setItem('pedidoAtual', pedidoId);
+            
+            this.mostrarStatusPedido(pedido);
+            this.navegarPara('pedido');
+            
+        } catch (error) {
+            console.error('Erro ao salvar pedido:', error);
+            alert('Erro ao finalizar pedido. Tente novamente.');
+        }
+    }
+
+    // ============================================
+    // STATUS DO PEDIDO (EM TEMPO REAL)
+    // ============================================
+    
+    mostrarStatusPedido(pedido) {
+        document.getElementById('pedido-numero').textContent = pedido.id;
+        this.atualizarTimeline(pedido.status);
+        
+        // Configurar listener em tempo real para atualizações
+        const pedidoRef = ref(db, `pedidos/${pedido.id}`);
+        onValue(pedidoRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                this.atualizarTimeline(data.status);
+                this.renderizarDetalhesPedido(data);
+            }
+        });
+    }
+
+    atualizarTimeline(status) {
+        const badge = document.getElementById('pedido-status-badge');
+        const cancelado = document.getElementById('pedido-cancelado');
+        const timeline = document.querySelector('.timeline');
         
         // Atualizar badge
-        const badge = document.getElementById('new-orders-badge');
-        if (badge) {
-            badge.textContent = newOrders.length;
-            badge.style.display = 'block';
+        badge.className = `status-badge ${status}`;
+        badge.textContent = {
+            'recebido': 'Recebido',
+            'preparo': 'Em Preparo',
+            'entrega': 'Saiu para Entrega',
+            'entregue': 'Entregue',
+            'cancelado': 'Cancelado'
+        }[status] || status;
+        
+        // Mostrar/ocultar cancelado
+        if (status === 'cancelado') {
+            cancelado.classList.remove('hidden');
+            timeline.classList.add('hidden');
+            return;
+        } else {
+            cancelado.classList.add('hidden');
+            timeline.classList.remove('hidden');
         }
         
-        // Atualizar lista se estiver visível
-        const ordersTab = document.getElementById('admin-tab-orders');
-        if (ordersTab && ordersTab.classList.contains('active')) {
-            renderAdminOrders();
+        // Atualizar timeline
+        const statuses = ['recebido', 'preparo', 'entrega', 'entregue'];
+        const currentIndex = statuses.indexOf(status);
+        
+        document.querySelectorAll('.timeline-item').forEach((item, index) => {
+            item.classList.remove('active', 'completed');
+            if (index < currentIndex) {
+                item.classList.add('completed');
+            } else if (index === currentIndex) {
+                item.classList.add('active');
+            }
+        });
+    }
+
+    renderizarDetalhesPedido(pedido) {
+        document.getElementById('pedido-itens').innerHTML = pedido.itens.map(item => `
+            <div class="resumo-item">
+                <span>${item.quantidade}x ${sanitizeInput(item.nome)}</span>
+                <span>${formatarPreco(item.preco * item.quantidade)}</span>
+            </div>
+        `).join('');
+        
+        document.getElementById('pedido-total').textContent = formatarPreco(pedido.total);
+    }
+
+    // ============================================
+    // ADMIN - AUTENTICAÇÃO
+    // ============================================
+    
+    async loginAdmin(e) {
+        e.preventDefault();
+        
+        const usuario = document.getElementById('admin-usuario').value;
+        const senha = document.getElementById('admin-senha').value;
+        
+        // Buscar credenciais do Firebase (em produção, usar Firebase Auth)
+        try {
+            const snapshot = await get(ref(db, 'config/admin'));
+            const adminConfig = snapshot.val();
+            
+            // Fallback para credenciais padrão se não configurado
+            const adminUser = adminConfig?.usuario || 'admin';
+            const adminPass = adminConfig?.senha || 'acai123';
+            
+            if (usuario === adminUser && senha === adminPass) {
+                this.adminLogado = true;
+                sessionStorage.setItem('adminSession', 'true');
+                document.getElementById('login-erro').classList.add('hidden');
+                this.navegarPara('admin');
+            } else {
+                document.getElementById('login-erro').classList.remove('hidden');
+                document.getElementById('admin-senha').value = '';
+            }
+        } catch (error) {
+            // Fallback para credenciais padrão em caso de erro
+            if (usuario === 'admin' && senha === 'acai123') {
+                this.adminLogado = true;
+                sessionStorage.setItem('adminSession', 'true');
+                this.navegarPara('admin');
+            } else {
+                document.getElementById('login-erro').classList.remove('hidden');
+            }
         }
     }
+
+    logout() {
+        this.adminLogado = false;
+        sessionStorage.removeItem('adminSession');
+        this.navegarPara('cardapio');
+    }
+
+    verificarSessaoAdmin() {
+        if (sessionStorage.getItem('adminSession') === 'true') {
+            this.adminLogado = true;
+        }
+    }
+
+    // ============================================
+    // ADMIN - PEDIDOS
+    // ============================================
     
-    lastOrderCheck = newOrders.length;
-}
+    mudarTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+        document.getElementById(`tab-${tab}`).classList.add('active');
+    }
 
-// Fechar todos os modais
-function closeAllModals() {
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.classList.add('hidden');
-    });
-}
+    filtrarPedidos(filtro) {
+        this.filtroAtual = filtro;
+        document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`[data-filtro="${filtro}"]`).classList.add('active');
+        this.renderizarPedidosAdmin();
+    }
 
-// Atualizar badge do carrinho
-function updateCartBadge() {
-    const badge = document.getElementById('cart-badge');
-    if (!badge) return;
+    renderizarPedidosAdmin() {
+        const container = document.getElementById('admin-pedidos-lista');
+        if (!container) return;
+        
+        let pedidosFiltrados = this.pedidos;
+        if (this.filtroAtual !== 'todos') {
+            pedidosFiltrados = pedidosFiltrados.filter(p => p.status === this.filtroAtual);
+        }
+        
+        // Excluir entregues e cancelados da lista principal (vão para histórico)
+        pedidosFiltrados = pedidosFiltrados.filter(p => !['entregue', 'cancelado'].includes(p.status));
+        
+        if (pedidosFiltrados.length === 0) {
+            container.innerHTML = '<p class="empty-state">Nenhum pedido encontrado.</p>';
+            return;
+        }
+        
+        container.innerHTML = pedidosFiltrados.map(pedido => this.criarCardPedido(pedido)).join('');
+    }
+
+    criarCardPedido(pedido) {
+        const statusLabels = {
+            'recebido': 'Novo',
+            'preparo': 'Em Preparo',
+            'entrega': 'Em Entrega'
+        };
+        
+        const actions = {
+            'recebido': `
+                <button class="btn-small btn-aceitar" onclick="app.atualizarStatus('${pedido.id}', 'preparo')">Aceitar</button>
+                <button class="btn-small btn-recusar" onclick="app.cancelarPedido('${pedido.id}')">Recusar</button>
+            `,
+            'preparo': `
+                <button class="btn-small btn-status" onclick="app.atualizarStatus('${pedido.id}', 'entrega')">Saiu para Entrega</button>
+            `,
+            'entrega': `
+                <button class="btn-small btn-aceitar" onclick="app.atualizarStatus('${pedido.id}', 'entregue')">Marcar Entregue</button>
+            `
+        };
+        
+        return `
+            <div class="pedido-card ${pedido.status}">
+                <div class="pedido-header">
+                    <div class="pedido-info">
+                        <h4>Pedido #${pedido.id}</h4>
+                        <div class="pedido-meta">
+                            ${pedido.data} | ${pedido.cliente.nome} | ${pedido.cliente.telefone}
+                        </div>
+                    </div>
+                    <span class="status-badge ${pedido.status}">${statusLabels[pedido.status] || pedido.status}</span>
+                </div>
+                <div class="pedido-itens-preview">
+                    ${pedido.itens.map(i => `${i.quantidade}x ${i.nome}`).join(', ')}<br>
+                    <strong>Total: ${formatarPreco(pedido.total)}</strong> | ${pedido.pagamento}
+                </div>
+                <div class="pedido-actions">
+                    ${actions[pedido.status] || ''}
+                    <button class="btn-small btn-recusar" onclick="app.cancelarPedido('${pedido.id}')">Cancelar</button>
+                </div>
+            </div>
+        `;
+    }
+
+    async atualizarStatus(pedidoId, novoStatus) {
+        try {
+            await update(ref(db, `pedidos/${pedidoId}`), { 
+                status: novoStatus,
+                updatedAt: Date.now()
+            });
+            this.mostrarFeedback(`Status atualizado para: ${novoStatus}`);
+        } catch (error) {
+            alert('Erro ao atualizar status');
+        }
+    }
+
+    async cancelarPedido(pedidoId) {
+        if (!confirm('Tem certeza que deseja cancelar este pedido?')) return;
+        
+        try {
+            await update(ref(db, `pedidos/${pedidoId}`), { 
+                status: 'cancelado',
+                updatedAt: Date.now()
+            });
+            this.mostrarFeedback('Pedido cancelado');
+        } catch (error) {
+            alert('Erro ao cancelar pedido');
+        }
+    }
+
+    // ============================================
+    // ADMIN - HISTÓRICO
+    // ============================================
     
-    const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-    badge.textContent = totalItems;
-    badge.style.display = totalItems > 0 ? 'flex' : 'none';
-}
+    renderizarHistorico() {
+        const container = document.getElementById('admin-historico-lista');
+        if (!container) return;
+        
+        const historico = this.pedidos.filter(p => ['entregue', 'cancelado'].includes(p.status));
+        
+        // Estatísticas
+        const totalPedidos = historico.filter(p => p.status === 'entregue').length;
+        const receitaTotal = historico
+            .filter(p => p.status === 'entregue')
+            .reduce((sum, p) => sum + p.total, 0);
+        
+        document.getElementById('stat-total').textContent = totalPedidos;
+        document.getElementById('stat-receita').textContent = formatarPreco(receitaTotal);
+        
+        if (historico.length === 0) {
+            container.innerHTML = '<p class="empty-state">Nenhum pedido no histórico.</p>';
+            return;
+        }
+        
+        container.innerHTML = historico.map(pedido => `
+            <div class="pedido-card ${pedido.status}">
+                <div class="pedido-header">
+                    <div class="pedido-info">
+                        <h4>Pedido #${pedido.id}</h4>
+                        <div class="pedido-meta">${pedido.data} | ${pedido.cliente.nome}</div>
+                    </div>
+                    <span class="status-badge ${pedido.status}">
+                        ${pedido.status === 'entregue' ? 'Entregue' : 'Cancelado'}
+                    </span>
+                </div>
+                <div class="pedido-itens-preview">
+                    ${pedido.itens.map(i => `${i.quantidade}x ${i.nome}`).join(', ')}<br>
+                    <strong>Total: ${formatarPreco(pedido.total)}</strong>
+                </div>
+            </div>
+        `).join('');
+    }
 
-// Toast notifications
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
+    // ============================================
+    // ADMIN - CARDÁPIO
+    // ============================================
     
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
+    renderizarCardapioAdmin() {
+        const container = document.getElementById('admin-cardapio-lista');
+        if (!container) return;
+        
+        if (this.cardapio.length === 0) {
+            container.innerHTML = '<p class="empty-state">Nenhum produto cadastrado.</p>';
+            return;
+        }
+        
+        container.innerHTML = this.cardapio.map(item => `
+            <div class="admin-produto-card">
+                <div class="admin-produto-info">
+                    <h4>${sanitizeInput(item.nome)} ${item.disponivel === false ? '<span class="indisponivel-badge">Indisponível</span>' : ''}</h4>
+                    <p>${sanitizeInput(item.descricao || '')}</p>
+                    <div class="admin-produto-preco">${formatarPreco(item.preco)}</div>
+                </div>
+                <div class="admin-produto-actions">
+                    <button class="btn-edit" onclick="app.editarProduto('${item.id}')" title="Editar">✏️</button>
+                    <button class="btn-delete" onclick="app.excluirProduto('${item.id}')" title="Excluir">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    abrirModalProduto(produtoId = null) {
+        const modal = document.getElementById('modal-produto');
+        const titulo = document.getElementById('modal-titulo');
+        const form = document.getElementById('form-produto');
+        
+        form.reset();
+        document.getElementById('produto-id').value = '';
+        
+        if (produtoId) {
+            const produto = this.cardapio.find(p => p.id === produtoId);
+            if (produto) {
+                titulo.textContent = 'Editar Produto';
+                document.getElementById('produto-id').value = produto.id;
+                document.getElementById('prod-nome').value = produto.nome;
+                document.getElementById('prod-descricao').value = produto.descricao || '';
+                document.getElementById('prod-preco').value = produto.preco;
+                document.getElementById('prod-categoria').value = produto.categoria || 'acai';
+                document.getElementById('prod-disponivel').checked = produto.disponivel !== false;
+            }
+        } else {
+            titulo.textContent = 'Novo Produto';
+        }
+        
+        modal.classList.remove('hidden');
+    }
+
+    editarProduto(produtoId) {
+        this.abrirModalProduto(produtoId);
+    }
+
+    fecharModal() {
+        document.getElementById('modal-produto').classList.add('hidden');
+    }
+
+    async salvarProduto(e) {
+        e.preventDefault();
+        
+        const id = document.getElementById('produto-id').value;
+        const produto = {
+            nome: sanitizeInput(document.getElementById('prod-nome').value),
+            descricao: sanitizeInput(document.getElementById('prod-descricao').value),
+            preco: parseFloat(document.getElementById('prod-preco').value),
+            categoria: document.getElementById('prod-categoria').value,
+            disponivel: document.getElementById('prod-disponivel').checked
+        };
+        
+        try {
+            if (id) {
+                // Atualizar existente
+                await update(ref(db, `cardapio/${id}`), produto);
+            } else {
+                // Criar novo
+                const novoRef = push(this.refCardapio);
+                await set(novoRef, produto);
+            }
+            
+            this.fecharModal();
+            this.mostrarFeedback('Produto salvo com sucesso!');
+        } catch (error) {
+            alert('Erro ao salvar produto');
+        }
+    }
+
+    async excluirProduto(produtoId) {
+        if (!confirm('Tem certeza que deseja excluir este produto?')) return;
+        
+        try {
+            await remove(ref(db, `cardapio/${produtoId}`));
+            this.mostrarFeedback('Produto excluído');
+        } catch (error) {
+            alert('Erro ao excluir produto');
+        }
+    }
+
+    // ============================================
+    // UTILITÁRIOS DE UI
+    // ============================================
     
-    const icons = {
-        success: 'fa-check-circle',
-        error: 'fa-exclamation-circle',
-        warning: 'fa-exclamation-triangle',
-        info: 'fa-info-circle'
-    };
+    mostrarFeedback(mensagem) {
+        // Criar toast temporário
+        const toast = document.createElement('div');
+        toast.className = 'notification';
+        toast.innerHTML = `
+            <div class="notification-content">
+                <span class="notification-icon">✅</span>
+                <span class="notification-text">${mensagem}</span>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    mostrarNotificacao(mensagem) {
+        const notif = document.getElementById('notification');
+        document.querySelector('.notification-text').textContent = mensagem;
+        notif.classList.remove('hidden');
+        
+        // Som de notificação (opcional)
+        // const audio = new Audio('notification.mp3');
+        // audio.play().catch(() => {});
+        
+        setTimeout(() => {
+            notif.classList.add('hidden');
+        }, 5000);
+    }
+
+    // ============================================
+    // DADOS INICIAIS
+    // ============================================
     
-    toast.innerHTML = `
-        <i class="fas ${icons[type]}"></i>
-        <span>${message}</span>
-    `;
-    
-    container.appendChild(toast);
-    
-    // Remover após 3 segundos
-    setTimeout(() => {
-        toast.style.animation = 'slideInRight 0.3s ease reverse';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    async carregarDados() {
+        // Verificar se já existe cardápio no Firebase
+        try {
+            const snapshot = await get(this.refCardapio);
+            if (!snapshot.exists()) {
+                // Seed inicial de produtos
+                const produtosIniciais = [
+                    { nome: 'Açaí Tradicional 300ml', descricao: 'Açaí puro na tigela 300ml', preco: 15.90, categoria: 'acai', disponivel: true },
+                    { nome: 'Açaí Tradicional 500ml', descricao: 'Açaí puro na tigela 500ml', preco: 22.90, categoria: 'acai', disponivel: true },
+                    { nome: 'Açaí Completo 500ml', descricao: 'Açaí com granola, banana e leite condensado', preco: 28.90, categoria: 'acai', disponivel: true },
+                    { nome: 'Açaí Premium 700ml', descricao: 'Açaí com mix de frutas e complementos especiais', preco: 35.90, categoria: 'acai', disponivel: true },
+                    { nome: 'Leite Condensado', descricao: 'Adicional de leite condensado', preco: 3.00, categoria: 'complemento', disponivel: true },
+                    { nome: 'Granola', descricao: 'Adicional de granola', preco: 2.50, categoria: 'complemento', disponivel: true },
+                    { nome: 'Paçoca', descricao: 'Adicional de paçoca', preco: 2.00, categoria: 'complemento', disponivel: true },
+                    { nome: 'Água 500ml', descricao: 'Água mineral sem gás', preco: 4.00, categoria: 'bebida', disponivel: true }
+                ];
+                
+                for (const produto of produtosIniciais) {
+                    const novoRef = push(this.refCardapio);
+                    await set(novoRef, produto);
+                }
+            }
+        } catch (error) {
+            console.error('Erro ao carregar dados:', error);
+        }
+        
+        // Verificar pedido em andamento
+        const pedidoAtual = localStorage.getItem('pedidoAtual');
+        if (pedidoAtual) {
+            // Verificar se pedido ainda existe e não está finalizado
+            try {
+                const snapshot = await get(ref(db, `pedidos/${pedidoAtual}`));
+                if (snapshot.exists()) {
+                    const pedido = snapshot.val();
+                    if (!['entregue', 'cancelado'].includes(pedido.status)) {
+                        this.pedidoAtual = pedidoAtual;
+                        this.mostrarStatusPedido(pedido);
+                    } else {
+                        localStorage.removeItem('pedidoAtual');
+                    }
+                }
+            } catch (e) {
+                localStorage.removeItem('pedidoAtual');
+            }
+        }
+    }
 }
 
-// Utilitários
-function getStatusLabel(status) {
-    const labels = {
-        'recebido': 'Recebido',
-        'preparo': 'Em Preparo',
-        'entrega': 'Saiu para Entrega',
-        'entregue': 'Entregue',
-        'cancelado': 'Cancelado'
-    };
-    return labels[status] || status;
-}
+// ============================================
+// INICIALIZAÇÃO GLOBAL
+// ============================================
 
-function getPaymentLabel(payment) {
-    const labels = {
-        'dinheiro': 'Dinheiro',
-        'pix': 'Pix',
-        'cartao': 'Cartão'
-    };
-    return labels[payment] || payment;
-}
-
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-// Logout admin (função extra)
-function logoutAdmin() {
-    isAdminLogged = false;
-    localStorage.removeItem(STORAGE_KEYS.ADMIN_LOGGED);
-    closeAdmin();
-    showToast('Logout realizado!', 'info');
-}
-
-// Exportar funções para o escopo global
-window.showSection = showSection;
-window.addToCart = addToCart;
-window.removeFromCart = removeFromCart;
-window.updateQuantity = updateQuantity;
-window.showCheckout = showCheckout;
-window.handleLogoClick = handleLogoClick;
-window.openAdmin = openAdmin;
-window.closeAdmin = closeAdmin;
-window.loginAdmin = loginAdmin;
-window.showAdminTab = showAdminTab;
-window.filterOrders = filterOrders;
-window.updateOrderStatus = updateOrderStatus;
-window.showAddItemForm = showAddItemForm;
-window.editItem = editItem;
-window.deleteItem = deleteItem;
-window.closeItemModal = closeItemModal;
-window.showOrderTracking = showOrderTracking;
-'''
-
-with open('/mnt/kimi/output/script.js', 'w', encoding='utf-8') as f:
-    f.write(js_content)
-
-print("✅ script.js criado com sucesso!")
-print(f"📄 Tamanho: {len(js_content)} caracteres")
-print("\n" + "="*60)
-print("🎉 SISTEMA AÇAÍ REI DELIVERY CRIADO COM SUCESSO!")
-print("="*60)
-print("\n📁 Arquivos criados:")
-print("   • index.html - Estrutura da aplicação")
-print("   • style.css - Estilos e design responsivo")
-print("   • script.js - Lógica e funcionalidades")
-print("\n🚀 Como usar:")
-print("   1. Abra o index.html no navegador")
-print("   2. Área do Cliente: navegue pelo cardápio")
-print("   3. Área Admin: clique 5 vezes no logo 'Açaí Rei'")
-print("   4. Senha do admin: admin123")
-print("\n✨ Funcionalidades implementadas:")
-print("   ✅ Cardápio dinâmico com produtos")
-print("   ✅ Carrinho de compras funcional")
-print("   ✅ Checkout com formulário completo")
-print("   ✅ Acompanhamento de pedidos em tempo real")
-print("   ✅ Área administrativa protegida")
-print("   ✅ Gerenciamento de pedidos (aceitar, preparar, entregar)")
-print("   ✅ CRUD completo do cardápio")
-print("   ✅ Notificações de novos pedidos")
-print("   ✅ Design responsivo (mobile e desktop)")
-print("   ✅ Animações e efeitos visuais")
-print("   ✅ Persistência via LocalStorage")
+window.app = new AcaiReiApp();
